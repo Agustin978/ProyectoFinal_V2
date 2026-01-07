@@ -6,3 +6,4 @@ scikit-learn
 pillow
 matplotlib
 tqdm
+torch-directml
