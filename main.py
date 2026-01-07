@@ -11,16 +11,28 @@ from src.training.trainer import Trainer
 
 # CONFIGURACION
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-BATCH_SIZE = 16 # Tamaño del lote, ajustar segun VRAM (1024x1024 input original -> Resized to 224)
+BATCH_SIZE = 16 # Ajustar segun VRAM (1024x1024 input original -> Resized to 224)
 LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
 
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #Selecciona GPU si está disponible
-    print(f"Usando dispositivo: {device}")
+    # Deteccion de dispositivo con soporte para DirectML (AMD en Windows)
+    device_name = "cpu"
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            device = torch_directml.device()
+            device_name = "dml (AMD GPU)"
+        else:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device_name = "cuda" if torch.cuda.is_available() else "cpu"
 
+    print(f"Usando dispositivo: {device_name}")
     # 1. Definir Transformaciones
     # Es crucial redimensionar a 224x224 para DenseNet preentrenada
     data_transforms = transforms.Compose([
