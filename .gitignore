@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Project specific
+*.pth
+data/
+archive/
+.DS_Store
