@@ -11,7 +11,7 @@ from src.training.trainer import Trainer
 
 # CONFIGURACION
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-BATCH_SIZE = 16 # Ajustar segun VRAM (1024x1024 input original -> Resized to 224)
+BATCH_SIZE = 8 # Ajustar segun VRAM (1024x1024 input original -> Resized to 224)
 LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
