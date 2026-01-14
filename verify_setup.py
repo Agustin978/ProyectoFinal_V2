@@ -20,5 +20,15 @@ def test_model():
     assert y.shape == (2, 14)
     print("Model shape check passed.")
 
+    # Check for DirectML
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            print(f"DirectML available. Device: {torch_directml.device()}")
+        else:
+            print("DirectML installed but not available.")
+    except ImportError:
+        print("DirectML not installed. Use 'pip install torch-directml' for AMD GPU support.")
+
 if __name__ == "__main__":
     test_model()
