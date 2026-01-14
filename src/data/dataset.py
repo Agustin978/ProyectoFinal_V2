@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 class NIHChestXRayDataset(Dataset):
-    def __init__(self, data_dir, csv_file='Data_Entry_2017.csv', transform=None, images_dir='images'):
+    def __init__(self, data_dir, csv_file='Data_Entry_2017.csv', transform=None, images_dir='images', no_finding_keep_frac=1.0):
         """
         Args:
             data_dir (str): Directorio raíz donde se encuentran los datos.
@@ -58,6 +58,34 @@ class NIHChestXRayDataset(Dataset):
         initial_len = len(self.df)
         self.df = self.df[self.df['Image Index'].isin(self.image_paths.keys())].reset_index(drop=True)
         print(f"DataFrame filtrado de {initial_len} a {len(self.df)} entradas basado en imágenes disponibles.")
+
+        # Undersampling de 'No Finding'
+        if no_finding_keep_frac < 1.0:
+            print(f"Aplicando undersampling a 'No Finding' con fracción de retención {no_finding_keep_frac}...")
+            no_finding_df = self.df[self.df['Finding Labels'] == 'No Finding']
+            finding_df = self.df[self.df['Finding Labels'] != 'No Finding']
+            
+            # Muestrear una fracción de 'No Finding'
+            no_finding_df = no_finding_df.sample(frac=no_finding_keep_frac, random_state=42)
+            
+            prev_len = len(self.df)
+            self.df = pd.concat([finding_df, no_finding_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+            print(f"Dataset reducido de {prev_len} a {len(self.df)} tras undersampling.")
+
+    def get_pos_weight(self):
+        """Calcula los pesos positivos para BCEWithLogitsLoss"""
+        N = len(self.df)
+        pos_counts = []
+        for label in self.all_labels:
+            # Contar ocurrencias de cada patología
+            count = self.df['Finding Labels'].str.contains(label, regex=False).sum()
+            pos_counts.append(count)
+        
+        pos_counts = torch.tensor(pos_counts, dtype=torch.float32)
+        # weight = (negative_samples) / positive_samples
+        # negative_samples = N - pos_counts
+        pos_weights = (N - pos_counts) / (pos_counts + 1e-6) # Evitar división por cero
+        return pos_weights
 
     def __len__(self):
         return len(self.df)
