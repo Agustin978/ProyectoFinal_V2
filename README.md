@@ -109,32 +109,33 @@ Encapsula la lógica de entrenamiento para mantener `main.py` limpio.
 El siguiente diagrama muestra cómo fluyen los datos desde el disco hasta el entrenamiento del modelo.
 
 ```mermaid
-graph TD
-    subgraph "Datos"
-        A[Imágenes Rayos X] --> B[Dataset (dataset.py)]
-        C[CSV Etiquetas] --> B
+flowchart TD
+    subgraph Datos["Datos"]
+        A["Imágenes Rayos X"] --> B["Dataset (dataset.py)"]
+        C["CSV Etiquetas"] --> B
     end
 
-    subgraph "Procesamiento"
-        B --> D[Transformaciones]
-        D -->|Resize 224x224 & Norm| E[Tensores]
-        E --> F[DataLoader (batching)]
+    subgraph Procesamiento["Procesamiento"]
+        B --> D["Transformaciones"]
+        D -->|Resize 224x224 & Norm| E["Tensores"]
+        E --> F["DataLoader (batching)"]
     end
 
-    subgraph "Modelo (DenseNet-121)"
-        F --> G[Capas Convolucionales]
-        G --> H[Capa Clasificadora Personalizada]
-        H --> I[Logits (14 Clases)]
+    subgraph Modelo["Modelo (DenseNet-121)"]
+        F --> G["Capas Convolucionales"]
+        G --> H["Capa Clasificadora Personalizada"]
+        H --> I["Logits (14 Clases)"]
     end
 
-    subgraph "Entrenamiento (Trainer)"
-        I --> J[Cálculo de Loss (BCEWithLogits)]
-        J -->|Con Pesos de Clase| K[Backpropagation]
-        K --> L[Optimizador (Adam)]
+    subgraph Entrenamiento["Entrenamiento (Trainer)"]
+        I --> J["Cálculo de Loss (BCEWithLogits)"]
+        J -->|Con Pesos de Clase| K["Backpropagation"]
+        K --> L["Optimizador (Adam)"]
         L -->|Actualizar Pesos| G
-        J -.-> M[Cálculo de AUC-ROC]
-        M -.-> N[CSV Log]
+        J -.-> M["Cálculo de AUC-ROC"]
+        M -.-> N["CSV Log"]
     end
+
 ```
 
 ## 5. Cómo Ejecutarlo
