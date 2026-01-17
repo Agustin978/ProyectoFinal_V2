@@ -154,7 +154,7 @@ Abre `main.py` y verifica las variables de configuración al inicio:
 
 ```python
 DATA_DIR = r"Ruta\A\Tu\Dataset"  # Ajusta esto a donde descomprimiste el dataset
-BATCH_SIZE = 16                  # Bajar si tienes poca memoria de video (VRAM)
+BATCH_SIZE = 8                  # Se modifica segun la cantidad de memoria VRAM
 ```
 
 ### Ejecutar Entrenamiento
