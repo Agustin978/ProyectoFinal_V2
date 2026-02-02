@@ -2,10 +2,14 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Dataset, WeightedRandomSampler
 from torchvision import transforms
 import pandas as pd
+import numpy as np
 import time
+
+from src.data.dataset import NIHChestXRayDataset
+from src.data.transforms import RandomGaussianBlur, RandomUnsharpMask
 
 from src.data.dataset import NIHChestXRayDataset
 from src.models.densenet import get_model
@@ -13,13 +17,70 @@ from src.training.trainer import Trainer
 
 # CONFIGURACION
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-BATCH_SIZE = 8 
+BATCH_SIZE = 8 # Ajustado segun VRAM (1024x1024 input original -> Resized to 224)()
 LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
 UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
 CSV_FILE = "results.csv"
+
+class AugmentedDataset(Dataset):
+    """Wrapper to apply transforms to a Subset."""
+    def __init__(self, subset, transform=None):
+        self.subset = subset
+        self.transform = transform
+        
+    def __getitem__(self, idx):
+        x, y = self.subset[idx]
+        if self.transform:
+            x = self.transform(x)
+        return x, y
+        
+    def __len__(self):
+        return len(self.subset)
+
+def calculate_sampler_weights(subset, dataset):
+    """
+    Calcula los pesos para WeightedRandomSampler.
+    Asigna el peso basandose en la patologia mas rara presente en la muestra.
+    Esta enfocado en las clases minoritarias (osea las que cuenten con menos de 2000 muestras).
+    """
+    
+    df = dataset.df.iloc[subset.indices]
+    all_labels = dataset.all_labels
+    
+    # Calculo de las cantidades por clase en el subvonjunto
+    label_counts = {}
+    for label in all_labels:
+        count = df['Finding Labels'].str.contains(label, regex=False).sum()
+        label_counts[label] = count
+        
+    print("Conteo de clases en Training Subset:", label_counts)
+    
+    class_weights = {}
+    for label, count in label_counts.items():
+        if count > 0:
+            class_weights[label] = 1.0 / count
+        else:
+            class_weights[label] = 0.0
+    
+    def get_max_weight(labels_str):
+        if labels_str == 'No Finding':
+            return 0.05 / len(df) # Peso bajo para No Finding relativo a patologias
+            # O simplemente 1/count_no_finding, pero queremos boostear las raras.
+        
+        w = 0.0
+        for label in all_labels:
+            if label in labels_str:
+                w = max(w, class_weights[label])
+        return w
+
+    print("Calculando pesos de muestreo...")
+    labels_series = df['Finding Labels']
+    sample_weights_list = labels_series.apply(get_max_weight).tolist()
+    
+    return sample_weights_list
 
 def main():
     # Deteccion de dispositivo con soporte para DirectML (AMD en Windows)
@@ -37,34 +98,63 @@ def main():
         device_name = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f"Usando dispositivo: {device_name}")
+    print(f"Usando dispositivo: {device_name}")
+
     # 1. Definir Transformaciones
-    # Es crucial redimensionar a 224x224 para DenseNet preentrenada
-    data_transforms = transforms.Compose([
+    # Transformaciones Base (Validacion)
+    val_transforms = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                              std=[0.229, 0.224, 0.225])
     ])
 
-    # 2. Cargar Dataset
+    # Transformaciones Aumentadas (Entrenamiento)
+    # Incluye geometricas y de frecuencia
+    train_transforms = transforms.Compose([
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        # transforms.RandomCrop -> Cuidado con perder info, mejor una rotacion leve
+        RandomGaussianBlur(p=0.3), 
+        RandomUnsharpMask(p=0.3),  
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+    # 2. Cargar Dataset Base (Sin transformaciones aun)
     try:
         print(f"Cargando datos desde {DATA_DIR}...")
-        full_dataset = NIHChestXRayDataset(data_dir=DATA_DIR, transform=data_transforms, no_finding_keep_frac=UNDERSAMPLE_RATE)
+        # Pasamos transform=None para obtener PIL Images crudas
+        full_dataset_raw = NIHChestXRayDataset(data_dir=DATA_DIR, transform=None, no_finding_keep_frac=UNDERSAMPLE_RATE)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return
 
     # 3. Dividir en Train/Validation (80/20)
-    train_size = int(0.8 * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    train_size = int(0.8 * len(full_dataset_raw))
+    val_size = len(full_dataset_raw) - train_size
+    train_subset, val_subset = random_split(full_dataset_raw, [train_size, val_size])
+    
+    # 4. Envolver subsets con sus respectivas transformaciones
+    train_dataset = AugmentedDataset(train_subset, transform=train_transforms)
+    val_dataset = AugmentedDataset(val_subset, transform=val_transforms)
     
     print(f"Datos de entrenamiento: {len(train_dataset)}")
     print(f"Datos de validacion: {len(val_dataset)}")
 
-    # 4. DataLoaders
-    # num_workers=0 para evitar problemas en Windows con spawn/fork en scripts simples, ajustar segun necesidad
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+    # 5. Configurar Sampler para Entrenamiento
+    sample_weights = calculate_sampler_weights(train_subset, full_dataset_raw)
+    sampler = WeightedRandomSampler(
+        weights=sample_weights,
+        num_samples=len(train_dataset), # Mismo tamaño, pero con reemplazo (oversampling)
+        replacement=True
+    )
+
+    # 6. DataLoaders
+    # Shuffle debe ser False cuando usamos sampler
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False, sampler=sampler, num_workers=2, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 
     # 5. Modelo
@@ -73,7 +163,7 @@ def main():
 
     # 6. Loss y Optimizador
     # Calcular pesos de clase (Weighted Loss)
-    pos_weights = full_dataset.get_pos_weight()
+    pos_weights = full_dataset_raw.get_pos_weight()
     pos_weights = pos_weights.to(device)
     
     # Para multi-label classification usamos BCEWithLogitsLoss con pos_weight
