@@ -84,7 +84,7 @@ class NIHChestXRayDataset(Dataset):
         pos_counts = torch.tensor(pos_counts, dtype=torch.float32)
         # weight = (negative_samples) / positive_samples
         # negative_samples = N - pos_counts
-        pos_weights = (N - pos_counts) / (pos_counts + 1e-6) # Evitar división por cero
+        pos_weights = (N - pos_counts) / (pos_counts + 1e-6) # 1e-6 Es para evitar el error por división por cero
         return pos_weights
 
     def __len__(self):

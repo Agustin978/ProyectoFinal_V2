@@ -19,7 +19,7 @@ def get_model(num_classes=14, pretrained=True):
     num_ftrs = model.classifier.in_features
     
     # Reemplazamos la capa lineal
-    # No usamos Sigmoid aqui si usamos BCEWithLogitsLoss en el entrenamiento (recomendado para estabilidad numerica)
+    # No usamos Sigmoid aqui si usamos BCEWithLogitsLoss en el entrenamiento
     model.classifier = nn.Linear(num_ftrs, num_classes)
     
     return model
