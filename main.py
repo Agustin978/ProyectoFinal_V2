@@ -116,7 +116,7 @@ def main():
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=10),
         # transforms.RandomCrop -> Cuidado con perder info, mejor una rotacion leve
-        RandomGaussianBlur(p=0.3), 
+        #RandomGaussianBlur(p=0.3), -> Quitada la aplicacion del filtro gaussiano (pasa baja) por disminucion de detalle
         RandomUnsharpMask(p=0.3),  
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
