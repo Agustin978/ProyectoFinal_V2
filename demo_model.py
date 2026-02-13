@@ -17,8 +17,35 @@ def predict_random_images(model_path, data_dir, num_images=10):
     print(f"--- Iniciando Demostracion de Inferencia ---")
     
     # 1. Configuracion
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Usando dispositivo: {device}")
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            device = torch_directml.device()
+            device_name = "dml (AMD GPU)"
+        else:
+            print("  [INFO] torch_directml instalado pero .is_available() retorno False.")
+            if torch.cuda.is_available():
+                 device = torch.device('cuda')
+                 device_name = f"cuda ({torch.cuda.get_device_name(0)})"
+            else:
+                 print("  [INFO] CUDA no disponible.")
+                 device = torch.device('cpu')
+                 device_name = "cpu"
+    except ImportError:
+        print("  [INFO] Modulo 'torch_directml' no encontrado.")
+        if torch.cuda.is_available():
+             device = torch.device('cuda')
+             device_name = f"cuda ({torch.cuda.get_device_name(0)})"
+        else:
+             print("  [INFO] CUDA no disponible.")
+             device = torch.device('cpu')
+             device_name = "cpu"
+    except Exception as e:
+        print(f"  [WARN] Error inesperado detectando DirectML: {e}")
+        device = torch.device('cpu')
+        device_name = "cpu"
+
+    print(f"Usando dispositivo: {device_name}")
     
     # 2. Definir transformaciones (Mismas que Validacion)
     transform = transforms.Compose([
@@ -43,7 +70,7 @@ def predict_random_images(model_path, data_dir, num_images=10):
     model = get_model(num_classes=14, pretrained=False) # Pretrained=False porque cargaremos nuestros propios pesos
     
     try:
-        state_dict = torch.load(model_path, map_location=device)
+        state_dict = torch.load(model_path, map_location=device, weights_only=False)
         model.load_state_dict(state_dict)
     except FileNotFoundError:
         print(f"Error: No se encontro el archivo de pesos {model_path}. Asegurate de haber entrenado el modelo primero.")
