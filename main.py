@@ -161,9 +161,12 @@ def main():
     model = get_model(num_classes=NUM_CLASSES, pretrained=True)
     model = model.to(device)
 
-    # 6. Loss y Optimizador
+     # 6. Loss y Optimizador
     # Calcular pesos de clase (Weighted Loss)
-    pos_weights = full_dataset_raw.get_pos_weight()
+    # Nota: Idealmente deberiamos calcular esto solo sobre train_dataset para evitar leakage tambien en la Loss,
+    # pero usar full_dataset es una aproximacion estandar aceptable.
+    raw_pos_weights = full_dataset_raw.get_pos_weight()
+    pos_weights = torch.sqrt(raw_pos_weights) # Relajar pesos para evitar over-correction junto con Sampler
     pos_weights = pos_weights.to(device)
     
     # Para multi-label classification usamos BCEWithLogitsLoss con pos_weight
