@@ -22,7 +22,7 @@ LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
-UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
+UNDERSAMPLE_RATE = 0.30 # Mantener 30% de 'No Finding'
 CSV_FILE = "results.csv"
 CHECKPOINT_FILE = "checkpoint.pth"
 
