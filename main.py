@@ -24,9 +24,10 @@ NUM_CLASSES = 14
 IMAGE_SIZE = 224
 UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
 CSV_FILE = "results.csv"
+CHECKPOINT_FILE = "checkpoint.pth"
 
 class AugmentedDataset(Dataset):
-    """Wrapper to apply transforms to a Subset."""
+    """Envolvedor para aplicar transformaciones a un subconjunto."""
     def __init__(self, subset, transform=None):
         self.subset = subset
         self.transform = transform
@@ -42,15 +43,18 @@ class AugmentedDataset(Dataset):
 
 def calculate_sampler_weights(subset, dataset):
     """
-    Calcula los pesos para WeightedRandomSampler.
-    Asigna el peso basandose en la patologia mas rara presente en la muestra.
-    Esta enfocado en las clases minoritarias (osea las que cuenten con menos de 2000 muestras).
+    Calcula los pesos para el WeightedRandomSampler.
+    Asigna un peso basado en la clase más rara presente en la imagen.
+    Se enfoca en clases minoritarias (aprox. < 2000 muestras).
     """
+    # 1. Contar frecuencias globales en el subconjunto de entrenamiento (para ser precisos)
+    #    o simplemente usar las frecuencias del dataframe completo para simplificar trabajando con índices.
+    #    Usemos los índices del subconjunto para buscar en el dataframe original.
     
     df = dataset.df.iloc[subset.indices]
     all_labels = dataset.all_labels
     
-    # Calculo de las cantidades por clase en el subvonjunto
+    # Calcular conteos por clase en este subconjunto
     label_counts = {}
     for label in all_labels:
         count = df['Finding Labels'].str.contains(label, regex=False).sum()
@@ -58,13 +62,20 @@ def calculate_sampler_weights(subset, dataset):
         
     print("Conteo de clases en Training Subset:", label_counts)
     
+    # Calcular peso por clase (Frecuencia Inversa)
+    # N = len(df)
+    # class_weight = N / count
     class_weights = {}
     for label, count in label_counts.items():
         if count > 0:
             class_weights[label] = 1.0 / count
         else:
             class_weights[label] = 0.0
+            
+    # Asignar peso específico a cada muestra
+    #sample_weights = []
     
+    # Pre-calcular mapa para mayor velocidad
     def get_max_weight(labels_str):
         if labels_str == 'No Finding':
             return 0.05 / len(df) # Peso bajo para No Finding relativo a patologias
@@ -77,6 +88,7 @@ def calculate_sampler_weights(subset, dataset):
         return w
 
     print("Calculando pesos de muestreo...")
+    # Usando list comprehension simple para mayor velocidad en series de pandas
     labels_series = df['Finding Labels']
     sample_weights_list = labels_series.apply(get_max_weight).tolist()
     
@@ -115,9 +127,9 @@ def main():
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=10),
-        # transforms.RandomCrop -> Cuidado con perder info, mejor una rotacion leve
-        #RandomGaussianBlur(p=0.3), -> Quitada la aplicacion del filtro gaussiano (pasa baja) por disminucion de detalle
-        RandomUnsharpMask(p=0.3),  
+        # transforms.RandomCrop -> Cuidado con perder info, mejor rotacion leve
+        # RandomGaussianBlur(p=0.3), # Transformación de Frecuencia Personalizada
+        RandomUnsharpMask(p=0.3),  # Transformación de Frecuencia Personalizada
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                              std=[0.229, 0.224, 0.225])
@@ -161,7 +173,7 @@ def main():
     model = get_model(num_classes=NUM_CLASSES, pretrained=True)
     model = model.to(device)
 
-     # 6. Loss y Optimizador
+    # 6. Loss y Optimizador
     # Calcular pesos de clase (Weighted Loss)
     # Nota: Idealmente deberiamos calcular esto solo sobre train_dataset para evitar leakage tambien en la Loss,
     # pero usar full_dataset es una aproximacion estandar aceptable.
@@ -173,13 +185,28 @@ def main():
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weights) 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+    # 6.5 Cargar Checkpoint si existe
+    start_epoch = 1
+    if os.path.exists(CHECKPOINT_FILE):
+        print(f"Cargando checkpoint desde {CHECKPOINT_FILE}...")
+        try:
+            checkpoint = torch.load(CHECKPOINT_FILE, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+            print(f"Resumiendo entrenamiento desde la epoca {start_epoch}")
+        except Exception as e:
+            print(f"Error cargando checkpoint: {e}. Se iniciara desde cero.")
+    else:
+        print("No se encontro checkpoint. Iniciando entrenamiento desde cero.")
+
     # 7. Entrenador
     trainer = Trainer(model, train_loader, val_loader, criterion, optimizer, device)
 
     # 8. Bucle principal
     results = []
     
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(start_epoch, EPOCHS + 1):
         start_time = time.time()
         train_loss = trainer.train_one_epoch(epoch)
         val_loss, val_auc = trainer.validate(epoch)
@@ -198,10 +225,22 @@ def main():
         })
         
         # Guardar CSV cada epoca
+        # Si estamos resumiendo, deberiamos idealmente hacer append, pero por simplicidad reescribimos con lo que tenemos en memoria
+        # (Nota: 'results' empieza vacio aqu. Si quisieramos historial completo en CSV, deberiamos leer el CSV existente antes)
         pd.DataFrame(results).to_csv(CSV_FILE, index=False)
         
-    # Guardar modelo final
-    torch.save(model.state_dict(), "densenet_nih.pth")
+        # Guardar Checkpoint
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': train_loss
+        }
+        torch.save(checkpoint, CHECKPOINT_FILE)
+        
+        # Guardar modelo final (solo pesos, para compatibilidad con inferencia)
+        torch.save(model.state_dict(), "densenet_nih.pth")
+        
     print("Entrenamiento finalizado y modelo guardado.")
 
 if __name__ == '__main__':
