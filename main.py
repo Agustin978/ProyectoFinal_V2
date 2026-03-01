@@ -22,7 +22,7 @@ LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
-UNDERSAMPLE_RATE = 0.30 # Mantener 30% de 'No Finding'
+UNDERSAMPLE_RATE = 0.30 # Mantener 25% de 'No Finding'
 CSV_FILE = "results.csv"
 CHECKPOINT_FILE = "checkpoint.pth"
 
@@ -73,7 +73,7 @@ def calculate_sampler_weights(subset, dataset):
             class_weights[label] = 0.0
             
     # Asignar peso específico a cada muestra
-    #sample_weights = []
+    # sample_weights = []
     
     # Pre-calcular mapa para mayor velocidad
     def get_max_weight(labels_str):
@@ -96,20 +96,34 @@ def calculate_sampler_weights(subset, dataset):
 
 def main():
     # Deteccion de dispositivo con soporte para DirectML (AMD en Windows)
-    device_name = "cpu"
     try:
         import torch_directml
         if torch_directml.is_available():
             device = torch_directml.device()
             device_name = "dml (AMD GPU)"
         else:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+            print("  [INFO] torch_directml instalado pero .is_available() retorno False.")
+            if torch.cuda.is_available():
+                 device = torch.device('cuda')
+                 device_name = f"cuda ({torch.cuda.get_device_name(0)})"
+            else:
+                 print("  [INFO] CUDA no disponible.")
+                 device = torch.device('cpu')
+                 device_name = "cpu"
     except ImportError:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        print("  [INFO] Modulo 'torch_directml' no encontrado.")
+        if torch.cuda.is_available():
+             device = torch.device('cuda')
+             device_name = f"cuda ({torch.cuda.get_device_name(0)})"
+        else:
+             print("  [INFO] CUDA no disponible.")
+             device = torch.device('cpu')
+             device_name = "cpu"
+    except Exception as e:
+        print(f"  [WARN] Error inesperado detectando DirectML: {e}")
+        device = torch.device('cpu')
+        device_name = "cpu"
 
-    print(f"Usando dispositivo: {device_name}")
     print(f"Usando dispositivo: {device_name}")
 
     # 1. Definir Transformaciones
@@ -190,7 +204,7 @@ def main():
     if os.path.exists(CHECKPOINT_FILE):
         print(f"Cargando checkpoint desde {CHECKPOINT_FILE}...")
         try:
-            checkpoint = torch.load(CHECKPOINT_FILE, map_location=device)
+            checkpoint = torch.load(CHECKPOINT_FILE, map_location='cpu', weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint['epoch'] + 1
