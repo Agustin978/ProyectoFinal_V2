@@ -3,10 +3,12 @@
 ## 1. Introducción
 Este proyecto implementa un sistema de aprendizaje profundo (Deep Learning) para la clasificación multi-etiqueta de 14 patologías torácicas comunes utilizando imágenes de Rayos X. El modelo base es **DenseNet-121**, pre-entrenado en ImageNet, adaptado mediante Transfer Learning.
 
-**Nuevas Características:**
-*   **Manejo de Desbalance de Clases:** Implementación de **Weighted Loss** y **Undersampling** de la clase mayoritaria ("No Finding").
-*   **Métricas Avanzadas:** Cálculo de **AUC-ROC** (Area Under the Receiver Operating Characteristic Curve) para evaluar mejor el rendimiento en datos desbalanceados.
-*   **Registro de Resultados:** Exportación automática de métricas por época a un archivo CSV.
+**Nuevas Características Implementadas:**
+*   **Manejo de Desbalance Avanzado:** Uso combinado de **Undersampling** (clase mayoritaria "No Finding") y **WeightedRandomSampler** para forzar lotes equilibrados.
+*   **Aumentación de Datos (Data Augmentation):** Aplicación de transformaciones geométricas (Flips, Rotaciones) y filtros de frecuencia (UnsharpMask) para generalización.
+*   **Entrenamiento Reanudable (Checkpoints):** Sistema de guardado y carga automática (`checkpoint.pth`) de modelo y optimizador para evitar pérdida de progreso ante interrupciones.
+*   **Soporte Multi-Dispositivo Robusto:** Detección de gráficas AMD en Windows vía `torch-directml` con workaround específico para cálculos de pérdida matemáticamente incompatibles.
+*   **Métricas y Registro:** Cálculo de **AUC-ROC** y guardado automático en CSV por época.
 
 ## 2. Estructura del Proyecto
 
@@ -42,25 +44,27 @@ Es el script orquestador del entrenamiento.
 *   `IMAGE_SIZE`: 224, resolución de entrada requerida por DenseNet.
 *   `UNDERSAMPLE_RATE`: Fracción (0.0 - 1.0) de la clase "No Finding" a mantener para reducir el desbalance (ej. 0.25).
 *   `CSV_FILE`: Nombre del archivo donde se guardarán los resultados detallados del entrenamiento.
+*   `CHECKPOINT_FILE`: Archivo (`checkpoint.pth`) para guardar el estado completo y permitir retomar el entrenamiento si se interrumpe.
 
 **Flujo Principal (`main()`):**
 1.  **Configuración de Dispositivo**:
-    *   Intenta usar **DirectML** (para AMD en Windows) si está disponible (`dml`).
-    *   Si no, busca **CUDA** (NVIDIA).
-    *   Por defecto cae en **CPU**.
-2.  **Transformaciones**: Define `transforms.Compose` incluyendo redimensionamiento a 224x224, conversión a Tensor y normalización con medias/desviaciones estándar de ImageNet.
+    *   Intenta usar **DirectML** (para AMD en Windows) si está disponible (`dml`). Maneja fallos informativos.
+    *   Si no, busca **CUDA** (NVIDIA), y por último cae en **CPU**.
+2.  **Transformaciones**: Define separadamente las `val_transforms` (Solo redimensionar y normalizar) y las `train_transforms` (Agregando **Data Augmentation** activo como RandomHorizontalFlip, RandomRotation y filtros).
 3.  **Carga de Datos**: Instancia `NIHChestXRayDataset` aplicando **undersampling** a la clase "No Finding" según `UNDERSAMPLE_RATE`.
 4.  **División**: Separa el dataset en 80% entrenamiento y 20% validación usando `random_split`.
-5.  **DataLoaders**: Crea iteradores para entrenamiento y validación.
-6.  **Modelo**: Instancia el modelo usando `get_model`.
+5.  **DataLoaders y Samplers**: 
+    *   Crea un `WeightedRandomSampler` que fuerza la aparición de imágenes con patologías raras.
+    *   Crea los iteradores de entrenamiento (usando el Sampler) y validación.
+6.  **Modelo**: Instancia el modelo (`get_model`).
 7.  **Loss y Optimizador**: 
-    *   Calcula los pesos positivos (`pos_weights`) del dataset para darle más importancia a las clases menos frecuentes.
-    *   Usa `BCEWithLogitsLoss` con estos pesos (`pos_weight`) para mitigar el desbalance.
+    *   Calcula los pesos del dataset pero los *relaja* con una raíz cuadrada (`torch.sqrt`) para evitar "alucinaciones" al usarse en conjunto con el Sampler inteligente.
     *   Usa el optimizador `Adam`.
-8.  **Bucle de Entrenamiento**: 
-    *   Itera por las épocas llamando a `trainer.train_one_epoch` y `trainer.validate`.
-    *   Calcula métricas como **AUC-ROC** promedio.
-    *   Guarda los resultados (Loss Train, Loss Val, AUC Val, Tiempo) en un archivo **CSV**.
+8.  **Reanudación Automática**: Revisa si existe `checkpoint.pth` y restablece todo a como estaba (época, pesos, estado adaptativo de Adam).
+9.  **Bucle de Entrenamiento**: 
+    *   Entrena y valida por épocas.
+    *   Mide Loss y **AUC-ROC**.
+    *   Guarda métricas (CSV) y sobreescribe el `checkpoint.pth` para proteger el progreso.
 
 ### 3.2 `src/data/dataset.py`
 Contiene la clase `NIHChestXRayDataset`, encargada de leer las imágenes y procesar las etiquetas.
@@ -116,9 +120,9 @@ flowchart TD
     end
 
     subgraph Procesamiento["Procesamiento"]
-        B --> D["Transformaciones"]
-        D -->|Resize 224x224 & Norm| E["Tensores"]
-        E --> F["DataLoader (batching)"]
+        B --> D["Transformaciones + Augmentation"]
+        D -->|"Resize, Flip, Blur, Norm"| E["Tensores"]
+        E -->|"Weighted Sampler"| F["DataLoader Batching"]
     end
 
     subgraph Modelo["Modelo (DenseNet-121)"]
@@ -128,14 +132,15 @@ flowchart TD
     end
 
     subgraph Entrenamiento["Entrenamiento (Trainer)"]
-        I --> J["Cálculo de Loss (BCEWithLogits)"]
-        J -->|Con Pesos de Clase| K["Backpropagation"]
-        K --> L["Optimizador (Adam)"]
-        L -->|Actualizar Pesos| G
-        J -.-> M["Cálculo de AUC-ROC"]
-        M -.-> N["CSV Log"]
+        I --> J["Cálculo de Loss BCE"]
+        J -.->|"Workaround AMD"| O["Cálculo en CPU"] 
+        O -.-> J
+        J -->|"Weighted BCE"| K["Backpropagation"]
+        K --> L["Optimizador Adam"]
+        L -->|"Actualizar Pesos"| G
+        J -.-> M["AUC-ROC"]
+        M -.-> N["CSV + Checkpoint.pth"]
     end
-
 ```
 
 ## 5. Cómo Ejecutarlo
@@ -154,7 +159,7 @@ Abre `main.py` y verifica las variables de configuración al inicio:
 
 ```python
 DATA_DIR = r"Ruta\A\Tu\Dataset"  # Ajusta esto a donde descomprimiste el dataset
-BATCH_SIZE = 8                  # Se modifica segun la cantidad de memoria VRAM
+BATCH_SIZE = 8                 
 ```
 
 ### Ejecutar Entrenamiento

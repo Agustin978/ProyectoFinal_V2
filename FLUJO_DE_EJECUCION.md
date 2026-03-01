@@ -11,37 +11,50 @@ Antes de nada, el código define las "reglas del juego" mediante constantes:
 *   `DATA_DIR`: Dónde buscar las imágenes.
 *   `BATCH_SIZE = 8`: Cuántas imágenes procesar a la vez. Si tu computadora se queda sin memoria, este número baja.
 *   `IMAGE_SIZE = 224`: Las redes neuronales necesitan entradas de tamaño fijo. Las imágenes originales (1024x1024) se encogerán a 224x224.
-*   `UNDERSAMPLE_RATE = 0.25`: Se decidió descartar el 75% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
+*   `UNDERSAMPLE_RATE = 0.30`: Se descartará el 70% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
+*   `CHECKPOINT_FILE`: El archivo donde se guardará el estado exacto del entrenamiento (pesos, optimizador, época) para poder reanudarlo si se corta.
 
 ### Inicio de `main()`
 1.  **Selección de Dispositivo (Hardware)**:
     *   El código comprueba si tienes una GPU AMD (`dml`), NVIDIA (`cuda`) o si debe usar el procesador (`cpu`). Esto es vital para la velocidad.
     *   *Variable*: `device` guarda esta elección.
 
-2.  **Preparación de Transformaciones (Líneas 40-47)**:
-    *   Se crea `data_transforms`. Es una "receta" que se aplicará a cada imagen *en el momento de cargarla*:
+1.  **Transformaciones (Validación vs Entrenamiento) (Líneas 114-135)**:
+    *   **Validación (`val_transforms`)**: Solo prepara la imagen para que el modelo la entienda:
         1.  `Resize(224)`: Achicar la imagen.
-        2.  `ToTensor()`: Convertir la imagen de píxeles (0-255) a números matemáticos (0.0-1.0) entendibles por PyTorch.
-        3.  `Normalize(...)`: Restar la media y dividir por la desviación estándar de ImageNet. Esto ayuda a que el modelo aprenda más rápido.
+        2.  `ToTensor()`: Convertir la imagen de píxeles (0-255) a números matemáticos (0.0-1.0).
+        3.  `Normalize(...)`: Estandarizar colores.
+    *   **Entrenamiento (`train_transforms`)**: Aplica la función anterior PLUS **Data Augmentation** (Aumentación de Datos):
+        *   `RandomHorizontalFlip`: Voltea la imagen como un espejo aleatoriamente.
+        *   `RandomRotation`: Gira la imagen ligeramente.
+        *   `RandomUnsharpMask`: Aplica un filtro de enfoque.
+        *   *Objetivo*: Hacer que el modelo vea variaciones de la misma imagen para que no memorice el dataset (evitar Sobreajuste/Overfitting).
 
-    *   `DataLoader`: Es un cargador inteligente. En lugar de darte todo de golpe, te da paquetes (`batches`) de 8 imágenes.
-    *   `shuffle=True` (solo en train): Baraja las cartas en cada época para que el modelo no memorice el orden.
+2.  **Preparación de los Lotes (DataLoaders y Sampler)**:
+    *   Primero, se separa en Train (80%) y Validation (20%).
+    *   **`WeightedRandomSampler`**: Es un selector inteligente para el set de Entrenamiento. Calcula qué patologías son las más raras y las elige a propósito con mucha más frecuencia. Esto asegura que cada paquete (batch) tenga ejemplos de casi todas las enfermedades, combatiendo el desbalance.
+    *   **`DataLoader`**: Empaqueta todo en grupos de tamaño `BATCH_SIZE` (ej. 8 imágenes a la vez).
 
-6.  **Inicialización del Modelo (Línea 71)**:
-    *   Llama a `get_model(...)` en `src/models/densenet.py`.
+3.  **Inicialización del Modelo y Pérdida (Líneas 171-185)**:
+    *   Llama a `get_model(...)` para cargar **DenseNet-121**.
+    *   Calcula `pos_weights`: Determina qué pesos aplicar a la función de error.
+    *   *Nota técnica:* Para evitar una doble sobre-corrección (ya que usamos el `Sampler` inteligente), se relajan los pesos aplicando una raíz cuadrada (`torch.sqrt`).
+    *   Define `criterion = BCEWithLogitsLoss` pasando esos pesos relajados.
+    *   Crea el `optimizer = Adam` para ajustar los tornillos (pesos) del modelo.
 
-7.  **Definición de Loss y Optimizador**:
-    *   `pos_weights`: Se calculan pesos para dar más importancia a las enfermedades raras.
-    *   `criterion = BCEWithLogitsLoss`: La fórmula matemática que mide el error. "BCE" (Binary Cross Entropy) es ideal para preguntas de Sí/No (¿Tiene Neumonía? Sí/No. ¿Tiene Hernia? Sí/No), aplicado a las 14 enfermedades a la vez.
-    *   `optimizer = Adam`: El algoritmo que ajusta los "tornillos" (pesos) del modelo basándose en el error reportado por `criterion`.
+4.  **Recuperación de Respaldo - Resumable Training (Líneas 188-201)**:
+    *   Busca si existe el archivo `checkpoint.pth`.
+    *   **Si existe**: Carga la memoria del modelo y el estado del optimizador, y reanuda desde la época donde se interrumpió.
+    *   **Si no existe**: Empieza el entrenamiento desde la época 1.
 
-8.  **El Bucle Principal (Líneas 89-112)**:
-    *   Un bucle `for` que se repite `EPOCHS` veces (10).
+5.  **El Bucle Principal (Líneas 207-244)**:
+    *   Un bucle `for` que se repite hasta la época final marcada por `EPOCHS`.
     *   En cada vuelta (época):
-        1.  `trainer.train_one_epoch(...)`: El modelo estudia.
-        2.  `trainer.validate(...)`: El modelo es evaluado.
-        3.  Se guarda el progreso en `results.csv`.
-    *   Al final, `torch.save` guarda el cerebro entrenado en un archivo `.pth`.
+        1.  `trainer.train_one_epoch(...)`: El modelo estudia (Train).
+        2.  `trainer.validate(...)`: El modelo realiza un examen de práctica (Valid).
+        3.  Se guarda el progreso de la época (Loss, AUC, Tiempo) en `results.csv`.
+        4.  **Guardado Seguro (Checkpoint)**: Salva `checkpoint.pth` para poder reanudar si se apaga la PC.
+    *   Al final de todo el proceso de las 10 épocas, guarda una versión "limpia" de los pesos `densenet_nih.pth` lista para inferencia en producción.
 
 ---
 
@@ -90,11 +103,12 @@ Esta clase `Trainer` hace el trabajo sucio del bucle de entrenamiento.
 1.  **`model.train()`**: Le dice al modelo "ponte en modo aprendizaje". Algunas capas (como Dropout) se comportan diferente.
 2.  **Iteración**: Va pidiendo lotes al `train_loader`.
 3.  **Pasos Clave**:
-    *   `optimizer.zero_grad()`: Borra los cálculos de la vuelta anterior.
-    *   `outputs = model(images)`: El modelo mira las imágenes y adivina.
-    *   `loss = criterion(outputs, labels)`: Se compara la adivinanza con la realidad.
-    *   `loss.backward()`: **Backpropagation**. Calcula de quién fue la culpa del error (gradientes).
-    *   `optimizer.step()`: Ajusta los pesos para reducir el error la próxima vez.
+    *   `optimizer.zero_grad()`: Borra los cálculos de corrección de la vuelta anterior.
+    *   `outputs = model(images)`: El modelo mira el paquete de 8 imágenes e intenta diagnosticar.
+    *   `loss = criterion(...)`: Se compara el diagnóstico adivinado contra la respuesta real.
+        *   *(Workaround DirectML)*: Como las tarjetas AMD pueden rebotar en esta operación matemática interna (`aten::log_sigmoid_forward`), parte de este cálculo se desplaza temporalmente al Procesador (`CPU`) y vuelve a la GPU limpiamente.
+    *   `loss.backward()`: **Backpropagation**. El algoritmo averigua quién fue el "culpable" de la equivocación a lo largo de toda la red.
+    *   `optimizer.step()`: Se ajustan los "tornillos" (pesos) del modelo en la dirección correcta para reducir el error la próxima vez.
 
 ### `validate` (Examen)
 1.  **`model.eval()`**: Modo examen. "No cambies nada, solo responde".
