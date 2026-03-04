@@ -6,13 +6,15 @@ import pandas as pd
 import numpy as np
 
 class NIHChestXRayDataset(Dataset):
-    def __init__(self, data_dir, csv_file='Data_Entry_2017.csv', transform=None, images_dir='images', no_finding_keep_frac=1.0):
+    def __init__(self, data_dir, csv_file='Data_Entry_2017.csv', transform=None, images_dir='', no_finding_keep_frac=1.0, exclude_list_path=None):
         """
         Args:
             data_dir (str): Directorio raíz donde se encuentran los datos.
             csv_file (str): Nombre del archivo CSV con las etiquetas.
             transform (callable, optional): Transformaciones opcionales a aplicar en la imagen.
             images_dir (str): Nombre de la carpeta que contiene las imágenes (o carpetas de imágenes).
+            no_finding_keep_frac (float): Fracción de muestras 'No Finding' a conservar.
+            exclude_list_path (str, optional): Ruta a un CSV con índices de imágenes a excluir rigurosamente (ej. set de test).
         """
         self.data_dir = data_dir
         self.transform = transform
@@ -26,7 +28,7 @@ class NIHChestXRayDataset(Dataset):
             
         self.df = pd.read_csv(self.csv_path)
         
-        # Lista de las 14 patologías oficiales + 'Hernia' (15 en total si incluimos Hernia explícitamente, pero el estándar es 14)
+        # Lista de las 14 patologías oficiales + 'Hernia' (15 en total si incluimos Hernia explícitamente, pero el estándar a evaluar aquí son 14)
         # El usuario mencionó explícitamente 'Hernia' como desbalanceada.
         # Las 14 clases estándar del dataset NIH son:
         self.all_labels = [
@@ -59,6 +61,22 @@ class NIHChestXRayDataset(Dataset):
         self.df = self.df[self.df['Image Index'].isin(self.image_paths.keys())].reset_index(drop=True)
         print(f"DataFrame filtrado de {initial_len} a {len(self.df)} entradas basado en imágenes disponibles.")
 
+        # Exclusión estricta de imágenes (Validación Segregada) - MUESTRA APLICADA DESPUÉS DEL FILTRADO BASE
+        if exclude_list_path:
+            abs_exclude_path = os.path.abspath(exclude_list_path)
+            if os.path.exists(abs_exclude_path):
+                print(f"Aislando conjunto de prueba (Test Set) usando: {abs_exclude_path}")
+                exclude_df = pd.read_csv(abs_exclude_path)
+                if 'Image Index' in exclude_df.columns:
+                    exclude_list = set(exclude_df['Image Index'].tolist())
+                    before_exclusion_len = len(self.df)
+                    self.df = self.df[~self.df['Image Index'].isin(exclude_list)].reset_index(drop=True)
+                    print(f"  -> Se eliminaron {before_exclusion_len - len(self.df)} imágenes que estaban estrictamente reservadas para validación.")
+                else:
+                    print(f"[ADVERTENCIA] El archivo de exclusión no tiene la columna 'Image Index'. Ignorando.")
+            else:
+                print(f"[ADVERTENCIA] Archivo de exclusión no encontrado en {abs_exclude_path}. No se excluirán imágenes.")
+
         # Undersampling de 'No Finding'
         if no_finding_keep_frac < 1.0:
             print(f"Aplicando undersampling a 'No Finding' con fracción de retención {no_finding_keep_frac}...")
@@ -84,7 +102,7 @@ class NIHChestXRayDataset(Dataset):
         pos_counts = torch.tensor(pos_counts, dtype=torch.float32)
         # weight = (negative_samples) / positive_samples
         # negative_samples = N - pos_counts
-        pos_weights = (N - pos_counts) / (pos_counts + 1e-6) # 1e-6 Es para evitar el error por división por cero
+        pos_weights = (N - pos_counts) / (pos_counts + 1e-6) # Evitar división por cero
         return pos_weights
 
     def __len__(self):
