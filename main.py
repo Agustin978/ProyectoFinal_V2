@@ -19,12 +19,13 @@ from src.training.trainer import Trainer
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
 BATCH_SIZE = 8 # Ajustado segun VRAM (1024x1024 input original -> Resized to 224)()
 LEARNING_RATE = 1e-4
-EPOCHS = 10
+EPOCHS = 15
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
-UNDERSAMPLE_RATE = 0.30 # Mantener 25% de 'No Finding'
+UNDERSAMPLE_RATE = 0.30 # Mantener 30% de 'No Finding'
 CSV_FILE = "results.csv"
 CHECKPOINT_FILE = "checkpoint.pth"
+EXCLUDE_LIST_FILE = "holdout_test_set.csv" # Imagenes reservadas estrictamente para test final
 
 class AugmentedDataset(Dataset):
     """Envolvedor para aplicar transformaciones a un subconjunto."""
@@ -73,7 +74,7 @@ def calculate_sampler_weights(subset, dataset):
             class_weights[label] = 0.0
             
     # Asignar peso específico a cada muestra
-    # sample_weights = []
+    sample_weights = []
     
     # Pre-calcular mapa para mayor velocidad
     def get_max_weight(labels_str):
@@ -153,7 +154,13 @@ def main():
     try:
         print(f"Cargando datos desde {DATA_DIR}...")
         # Pasamos transform=None para obtener PIL Images crudas
-        full_dataset_raw = NIHChestXRayDataset(data_dir=DATA_DIR, transform=None, no_finding_keep_frac=UNDERSAMPLE_RATE)
+        # Aplicamos la exclusión estricta de las imágenes separadas en holdout_test_set.csv
+        full_dataset_raw = NIHChestXRayDataset(
+            data_dir=DATA_DIR, 
+            transform=None, 
+            no_finding_keep_frac=UNDERSAMPLE_RATE,
+            exclude_list_path=EXCLUDE_LIST_FILE
+        )
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return

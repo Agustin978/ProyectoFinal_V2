@@ -16,6 +16,6 @@ pip-delete-this-directory.txt
 
 # Project specific
 *.pth
-data/
+data/_pycache_/
 archive/
 .DS_Store
