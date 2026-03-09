@@ -16,11 +16,13 @@ Este proyecto implementa un sistema de aprendizaje profundo (Deep Learning) para
 nih_chest_xray_classification/
 │
 ├── main.py                  # Punto de entrada principal para el entrenamiento
+├── evaluate_model.py        # Evaluación rigurosa sobre el Test Set de reserva
 ├── verify_setup.py          # Script de verificación de entorno
 ├── requirements.txt         # Dependencias del proyecto
 │
 └── src/
     ├── data/
+    │   ├── create_test_set.py # Script para extraer el Test Set puro (Holdout)
     │   └── dataset.py       # Definición de la clase Dataset (Pytorch)
     ├── models/
     │   └── densenet.py      # Definición de la arquitectura del modelo
@@ -45,20 +47,23 @@ Es el script orquestador del entrenamiento.
 *   `UNDERSAMPLE_RATE`: Fracción (0.0 - 1.0) de la clase "No Finding" a mantener para reducir el desbalance (ej. 0.25).
 *   `CSV_FILE`: Nombre del archivo donde se guardarán los resultados detallados del entrenamiento.
 *   `CHECKPOINT_FILE`: Archivo (`checkpoint.pth`) para guardar el estado completo y permitir retomar el entrenamiento si se interrumpe.
+*   `EXCLUDE_LIST_FILE`: Archivo CSV (`holdout_test_set.csv`) que contiene las imágenes extraídas previamente que **bajo ninguna circunstancia** deben incluirse en el entrenamiento.
 
 **Flujo Principal (`main()`):**
 1.  **Configuración de Dispositivo**:
     *   Intenta usar **DirectML** (para AMD en Windows) si está disponible (`dml`). Maneja fallos informativos.
     *   Si no, busca **CUDA** (NVIDIA), y por último cae en **CPU**.
 2.  **Transformaciones**: Define separadamente las `val_transforms` (Solo redimensionar y normalizar) y las `train_transforms` (Agregando **Data Augmentation** activo como RandomHorizontalFlip, RandomRotation y filtros).
-3.  **Carga de Datos**: Instancia `NIHChestXRayDataset` aplicando **undersampling** a la clase "No Finding" según `UNDERSAMPLE_RATE`.
-4.  **División**: Separa el dataset en 80% entrenamiento y 20% validación usando `random_split`.
+3.  **Carga de Datos**: 
+    *   Excluye estrictamente las imágenes listadas en `EXCLUDE_LIST_FILE` garantizando 0% de fuga de datos (Data Leakage).
+    *   Instancia `NIHChestXRayDataset` aplicando **undersampling** a la clase "No Finding" según `UNDERSAMPLE_RATE`.
+4.  **División**: Separa el dataset restante en 80% entrenamiento y 20% validación (Epoch-level) usando `random_split`.
 5.  **DataLoaders y Samplers**: 
     *   Crea un `WeightedRandomSampler` que fuerza la aparición de imágenes con patologías raras.
     *   Crea los iteradores de entrenamiento (usando el Sampler) y validación.
 6.  **Modelo**: Instancia el modelo (`get_model`).
 7.  **Loss y Optimizador**: 
-    *   Calcula los pesos del dataset pero los *relaja* con una raíz cuadrada (`torch.sqrt`) para evitar "alucinaciones" al usarse en conjunto con el Sampler inteligente.
+    *   Calcula los pesos del dataset pero los *relaja* con una raíz cuadrada (`torch.sqrt`) para evitar que el Sampler provoque alucinaciones (Falsos Positivos).
     *   Usa el optimizador `Adam`.
 8.  **Reanudación Automática**: Revisa si existe `checkpoint.pth` y restablece todo a como estaba (época, pesos, estado adaptativo de Adam).
 9.  **Bucle de Entrenamiento**: 
@@ -105,8 +110,12 @@ Encapsula la lógica de entrenamiento para mantener `main.py` limpio.
     *   Pone el modelo en modo evaluación (`model.eval()`).
     *   Desactiva el cálculo de gradientes (`torch.no_grad()`) para ahorrar memoria.
     *   Calcula el loss sobre el conjunto de validación.
-    *   **Nuevo**: Calcula el AUC-ROC (Area Under the Curve) promedio usando `sklearn.metrics.roc_auc_score` para evaluar la calidad de las predicciones independientemente del umbral de decisión.
+    *   Se usa `roc_auc_score` para ver qué tan bueno es el ranking del modelo (independientemente de un punto de corte fijo).
     *   Retorna `val_loss` y `val_auc`.
+
+### 3.5 Segregación y Evaluación Científica
+*   **`src/data/create_test_set.py`**: Este script debe ejecutarse antes de cualquier entrenamiento. Recorre el CSV original, selecciona matemáticamente **10 imágenes aleatorias por cada una de las 14 patologías** y genera un listado "sagrado" (`holdout_test_set.csv`) de 140 imágenes que jamás serán vistas por la red neuronal durante su estudio.
+*   **`evaluate_model.py`**: Es el auditor final. Carga el `densenet_nih.pth` ya entrenado y lo evalúa **únicamente** sobre las 140 imágenes de la lista segregada. Por cada patología, emite una **Sensibilidad** y **Especificidad** precisas, además de guardar una tabla auditable (`evaluation_results.csv`) con cada predicción individual. Activa `model.eval()` y desactiva gradientes descartando así cualquier posibilidad de *Data Leakage*.
 
 ## 4. Diagrama de Funcionamiento
 
@@ -117,6 +126,8 @@ flowchart TD
     subgraph Datos["Datos"]
         A["Imágenes Rayos X"] --> B["Dataset (dataset.py)"]
         C["CSV Etiquetas"] --> B
+        P["create_test_set.py"] -->|"Genera 140 Test"| Q["holdout_test_set.csv"]
+        Q -->|"Lista de Exclusión"| B
     end
 
     subgraph Procesamiento["Procesamiento"]
@@ -131,7 +142,7 @@ flowchart TD
         H --> I["Logits (14 Clases)"]
     end
 
-    subgraph Entrenamiento["Entrenamiento (Trainer)"]
+    subgraph Entrenamiento["Entrenamiento y Evaluación"]
         I --> J["Cálculo de Loss BCE"]
         J -.->|"Workaround AMD"| O["Cálculo en CPU"] 
         O -.-> J
@@ -140,6 +151,9 @@ flowchart TD
         L -->|"Actualizar Pesos"| G
         J -.-> M["AUC-ROC"]
         M -.-> N["CSV + Checkpoint.pth"]
+        N -.->|"Modelo Final.pth"| R["evaluate_model.py"]
+        Q -.->|"140 Imágenes Vírgenes"| R
+        R -.-> S["Matrices de Confusión + Tabla"]
     end
 ```
 
@@ -159,14 +173,27 @@ Abre `main.py` y verifica las variables de configuración al inicio:
 
 ```python
 DATA_DIR = r"Ruta\A\Tu\Dataset"  # Ajusta esto a donde descomprimiste el dataset
-BATCH_SIZE = 8                 
+BATCH_SIZE = 16                  # Bajar si tienes poca memoria de video (VRAM)
 ```
 
-### Ejecutar Entrenamiento
-Desde la terminal, en la carpeta raíz del proyecto:
+### Ejecución Cronológica
 
+**Paso 1: Generar el Test Set (Vital)**
+Antes de empezar a entrenar para fines científicos, aísla un set de pruebas puro:
+```bash
+python src/data/create_test_set.py
+```
+
+**Paso 2: Ejecutar Entrenamiento**
+Desde la terminal, en la carpeta raíz del proyecto, inicia o reanuda el entrenamiento. El script ignorará las imágenes aisladas en el Paso 1:
 ```bash
 python main.py
 ```
+El script mostrará el progreso época por época, imprimiendo el Loss de entrenamiento y validación. Al finalizar las épocas estipuladas, guardará el modelo entrenado terminado como `densenet_nih.pth`. Si interrumpes el proceso, guardará un `checkpoint.pth`.
 
-El script mostrará el progreso época por época, imprimiendo el Loss de entrenamiento y validación. Al finalizar, guardará el modelo entrenado como `densenet_nih.pth`.
+**Paso 3: Evaluación Rigurosa (Auditoría Final)**
+Una vez finalizado tu entrenamiento y teniendo tu `densenet_nih.pth` listo, somételo a la validación rigurosa sobre las imágenes jamás vistas:
+```bash
+python evaluate_model.py
+```
+Se imprimirán por consola 14 Matrices de Confusión (Sensibilidad y Especificidad por enfermedad) y se exportará el archivo `evaluation_results.csv`.

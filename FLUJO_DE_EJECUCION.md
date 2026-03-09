@@ -2,16 +2,25 @@
 
 Este documento detalla qué sucede exactamente cuando ejecutas el comando `python main.py`, explicando cada archivo, función y variable importante en el proceso.
 
-## 1. El Director de Orquesta: `main.py`
+## 1. Fase Previa: Aislamiento Clínico (`src/data/create_test_set.py`)
 
-Todo comienza aquí. Este script coordina todos los componentes.
+Antes de que la red neuronal vea cualquier imagen, debemos separar rigurosamente un grupo de pacientes para el examen final. Este paso evita el Data Leakage (Fuga de datos).
+1.  **Lectura Inicial**: Abre el CSV original con los 112,000 registros.
+2.  **Muestreo Equitativo**: Selecciona 10 imágenes al azar por cada una de las 14 patologías usando una semilla matemática fija.
+3.  **La Lista Negra**: Guarda los nombres de esas 140 imágenes extraídas en el archivo `holdout_test_set.csv`.
+
+---
+
+## 2. El Director de Orquesta: `main.py`
+
+El entrenamiento real comienza aquí. Este script coordina todos los componentes de la red neuronal.
 
 ### Fase de Configuración (Líneas 14-22)
 Antes de nada, el código define las "reglas del juego" mediante constantes:
 *   `DATA_DIR`: Dónde buscar las imágenes.
 *   `BATCH_SIZE = 8`: Cuántas imágenes procesar a la vez. Si tu computadora se queda sin memoria, este número baja.
 *   `IMAGE_SIZE = 224`: Las redes neuronales necesitan entradas de tamaño fijo. Las imágenes originales (1024x1024) se encogerán a 224x224.
-*   `UNDERSAMPLE_RATE = 0.30`: Se descartará el 70% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
+*   `UNDERSAMPLE_RATE = 0.25`: Se descartará el 75% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
 *   `CHECKPOINT_FILE`: El archivo donde se guardará el estado exacto del entrenamiento (pesos, optimizador, época) para poder reanudarlo si se corta.
 
 ### Inicio de `main()`
@@ -58,18 +67,19 @@ Antes de nada, el código define las "reglas del juego" mediante constantes:
 
 ---
 
-## 2. El Gestor de Datos: `src/data/dataset.py`
+## 3. El Gestor de Datos: `src/data/dataset.py`
 
 Esta clase (`NIHChestXRayDataset`) actúa como un bibliotecario. No lee todos los libros a la vez, sino que sabe dónde están y entrega uno cuando se le pide.
 
 ### `__init__` (Al arrancar)
 1.  **Lectura del CSV**: Carga `Data_Entry_2017.csv` en memoria (`self.df`).
 2.  **Búsqueda de Imágenes**: Escanea el disco duro para ver qué imágenes existen realmente (`self.image_paths`).
-3.  **Filtrado**: Elimina del CSV las filas de imágenes que no se encontraron en el disco.
-4.  **Undersampling (Líneas 63-73)**:
+3.  **Filtrado Base**: Elimina del CSV las filas de imágenes que no se encontraron en el disco.
+4.  **Exclusión Estricta (Holdout Set)**: *¡Paso Crítico!* Lee la lista negra (`holdout_test_set.csv`) y **borra** esas 140 imágenes de la memoria antes de hacer nada más. La red neuronal nunca interactuará con ellas.
+5.  **Undersampling (Líneas 82-89)**:
     *   Separa las filas con 'No Finding' (sanos) y las enfermedades.
-    *   Toma solo una fracción de los sanos.
-    *   Vuelve a juntar todo. Esto equilibra el juego.
+    *   Toma solo una fracción de los sanos (ej. el 25% o lo que dicte `UNDERSAMPLE_RATE`).
+    *   Vuelve a juntar todo. Esto equilibra el juego a favor de las enfermedades.
 
 ### `__getitem__` (Pedido bajo demanda)
 Esta función se llama miles de veces, una por cada imagen.
@@ -84,7 +94,7 @@ Esta función se llama miles de veces, una por cada imagen.
 
 ---
 
-## 3. El Cerebro: `src/models/densenet.py`
+## 4. El Cerebro: `src/models/densenet.py`
 
 ### `get_model`
 1.  **Base**: Descarga `densenet121` de internet. Esta red ya sabe reconocer gatos, perros, coches, etc. (ImageNet). Esto significa que ya sabe identificar bordes, texturas y formas complejas ("Know-how").
@@ -95,7 +105,7 @@ Esta función se llama miles de veces, una por cada imagen.
 
 ---
 
-## 4. El Entrenador: `src/training/trainer.py`
+## 5. El Entrenador: `src/training/trainer.py`
 
 Esta clase `Trainer` hace el trabajo sucio del bucle de entrenamiento.
 
@@ -119,13 +129,31 @@ Esta clase `Trainer` hace el trabajo sucio del bucle de entrenamiento.
 
 ---
 
-## Resumen de Flujo de Datos
+## 6. La Auditoría Final: `evaluate_model.py`
 
-1.  **Disco Duro** -> `dataset.py` (Lee archivo)
-2.  `dataset.py` -> `transforms` (Redimensiona/Normaliza)
-3.  `transforms` -> `DataLoader` (Agrupa en paquetes de 8)
-4.  `DataLoader` -> `trainer.py` (Envía a GPU)
-5.  `trainer.py` -> `model` (Predice)
-6.  `model` -> `loss` (Calcula error)
-7.  `loss` -> `optimizer` (Mejora modelo)
-8.  `metrics` -> `csv` (Guarda historia)
+Una vez terminado el entrenamiento (cuando `main.py` finaliza todas sus épocas y escupe el archivo `densenet_nih.pth`), entra en juego este script para evaluar científicamente al modelo.
+
+1.  **Carga del Test Set**: Lee la lista negra (`holdout_test_set.csv`) aislando únicamente las 140 imágenes.
+2.  **Modo Examen Estricto**: Carga el modelo guardado y ejecuta `model.eval()` y `torch.no_grad()`. Esto apaga por completo los motores de aprendizaje de la red neuronal, garantizando que el modelo **no pueda alterar sus pesos** mientras las examina.
+3.  **Predicción Pura**: El modelo diagnostica las 140 imágenes basándose en su `densenet_nih.pth`, sin trucos, ni Samplers, ni Data Augmentation.
+4.  **Veredicto**: Genera 14 Matrices de Confusión por consola midiendo *Sensibilidad* y *Especificidad* de cada patología, además de exportar una tabla auditable (`evaluation_results.csv`) registro por registro.
+
+---
+
+## Resumen Final del Flujo de Datos Cronológico
+
+1.  `create_test_set.py` -> Aísla 140 archivos críticos al `holdout_test_set.csv`
+2.  **Inicio de `main.py`:**
+3.  **Disco Duro** -> `dataset.py` (Lee archivo general)
+4.  `dataset.py` -> Chequea `holdout_test_set.csv` y purga esas 140 imágenes.
+5.  `dataset.py` -> Reduce la clase mayoritaria (Undersampling).
+6.  `dataset.py` -> `transforms` (Voltea, Rota y Afila bordes al vuelo).
+7.  `transforms` -> `WeightedRandomSampler` (Fuerza aparición de Minorías Clínicas).
+8.  `Sampler` -> `DataLoader` (Agrupa en paquetes de 8).
+9.  `DataLoader` -> `trainer.py` (Envía a la Tarjeta Gráfica/DirectML).
+10. `trainer.py` -> `model` (Predice usando Pesos Relajados).
+11. `model` -> `loss` (Calcula error temporalmente en CPU y corrige en GPU).
+12. `loss` -> `optimizer` (Ajusta modelo y aprende).
+13. `metrics` -> `csv` (Guarda historia) + `checkpoint.pth` (Sobrescribe progreso).
+14. **Fin de `main.py`:** Genera modelo final `densenet_nih.pth`.
+15. **Auditoría Final:** `evaluate_model.py` usa `densenet_nih.pth` contra `holdout_test_set.csv` generando la tabla auditada.
