@@ -1,0 +1,141 @@
+Image_Name,True_Labels,Predicted_Labels,Exact_Match
+00026968_004.png,Atelectasis,Infiltration,False
+00005372_027.png,Atelectasis|Effusion,Atelectasis,False
+00001200_000.png,Atelectasis|Pneumonia,Atelectasis,False
+00011835_003.png,Atelectasis,Atelectasis | Pneumothorax | Emphysema,False
+00010741_012.png,Atelectasis|Consolidation,Atelectasis | Effusion,False
+00009932_005.png,Atelectasis|Infiltration,Cardiomegaly | Edema,False
+00006635_007.png,Atelectasis,Nodule | Consolidation,False
+00004952_000.png,Atelectasis,Atelectasis | Infiltration | Nodule,False
+00029159_026.png,Atelectasis|Effusion|Mass|Nodule,Infiltration | Edema,False
+00021087_002.png,Atelectasis,Consolidation,False
+00003483_000.png,Cardiomegaly,Cardiomegaly,True
+00025290_032.png,Cardiomegaly|Effusion|Infiltration,Cardiomegaly | Pneumonia,False
+00016414_001.png,Cardiomegaly|Infiltration,Cardiomegaly,False
+00000498_003.png,Cardiomegaly,No Finding,False
+00000457_002.png,Cardiomegaly|Effusion,Cardiomegaly | Effusion,True
+00003751_002.png,Cardiomegaly|Effusion|Mass,Mass | Nodule,False
+00007510_001.png,Cardiomegaly,Cardiomegaly,True
+00008309_005.png,Cardiomegaly,Cardiomegaly,True
+00019880_005.png,Cardiomegaly,Cardiomegaly,True
+00026560_011.png,Atelectasis|Cardiomegaly|Consolidation,Nodule,False
+00001226_003.png,Effusion,No Finding,False
+00019690_003.png,Effusion|Infiltration|Pneumonia,Atelectasis,False
+00008841_058.png,Effusion|Emphysema|Pleural_Thickening,Pneumothorax | Emphysema,False
+00026461_002.png,Atelectasis|Consolidation|Effusion,Atelectasis | Effusion,False
+00022423_000.png,Atelectasis|Effusion,Atelectasis | Effusion,True
+00025839_021.png,Effusion|Infiltration,Effusion | Infiltration | Pneumothorax,False
+00019124_053.png,Atelectasis|Effusion,Effusion | Mass | Nodule | Pneumothorax,False
+00015386_000.png,Atelectasis|Effusion,Effusion,False
+00009727_018.png,Consolidation|Effusion,No Finding,False
+00016308_000.png,Effusion,Effusion | Mass | Consolidation,False
+00029614_000.png,Infiltration,Cardiomegaly | Effusion | Consolidation,False
+00014508_000.png,Infiltration,Effusion | Pleural_Thickening,False
+00000288_000.png,Infiltration,No Finding,False
+00009555_001.png,Effusion|Infiltration,Infiltration | Mass | Nodule,False
+00020408_065.png,Infiltration,Infiltration | Mass | Consolidation,False
+00017511_001.png,Cardiomegaly|Infiltration,Infiltration | Nodule | Edema,False
+00014472_009.png,Infiltration,Atelectasis | Consolidation,False
+00009315_003.png,Atelectasis|Emphysema|Infiltration,Atelectasis | Emphysema | Fibrosis,False
+00012010_027.png,Infiltration,Emphysema,False
+00017318_020.png,Infiltration,Infiltration,True
+00006519_024.png,Mass,Effusion | Consolidation | Edema,False
+00006010_002.png,Mass,Atelectasis | Emphysema,False
+00016064_009.png,Emphysema|Infiltration|Mass,Infiltration | Mass,False
+00006252_015.png,Infiltration|Mass,Mass | Nodule | Consolidation | Emphysema,False
+00015369_000.png,Mass,Effusion,False
+00014888_016.png,Infiltration|Mass,Mass | Edema,False
+00025082_001.png,Mass,Effusion | Infiltration | Pneumothorax,False
+00012829_000.png,Effusion|Mass|Pleural_Thickening,Pneumothorax | Emphysema | Fibrosis,False
+00002848_000.png,Mass|Pleural_Thickening|Pneumothorax,Emphysema,False
+00018065_007.png,Effusion|Emphysema|Mass,Effusion | Pneumothorax | Emphysema,False
+00019731_000.png,Nodule,Effusion | Mass | Nodule | Fibrosis,False
+00005722_045.png,Infiltration|Nodule,Nodule,False
+00014952_000.png,Nodule,Mass,False
+00003769_000.png,Infiltration|Nodule,Nodule | Pleural_Thickening,False
+00020184_007.png,Infiltration|Nodule,Infiltration | Nodule | Pneumothorax,False
+00012242_005.png,Infiltration|Mass|Nodule,Mass | Nodule | Consolidation,False
+00022726_008.png,Nodule|Pneumothorax,Mass | Nodule,False
+00022374_004.png,Atelectasis|Mass|Nodule,Atelectasis | Emphysema,False
+00014458_007.png,Nodule,Mass | Pneumothorax | Consolidation,False
+00020767_000.png,Nodule,Nodule,True
+00009507_004.png,Hernia|Infiltration|Pneumonia,Infiltration | Mass | Nodule | Hernia,False
+00002993_002.png,Infiltration|Pneumonia,Infiltration | Pneumonia | Consolidation | Pleural_Thickening,False
+00001837_002.png,Pneumonia,Nodule,False
+00028088_003.png,Atelectasis|Effusion|Pneumonia,Atelectasis | Infiltration,False
+00010531_075.png,Consolidation|Pneumonia,No Finding,False
+00012834_085.png,Pneumonia,Pleural_Thickening,False
+00003523_011.png,Pneumonia,Infiltration,False
+00010604_005.png,Edema|Pneumonia,Atelectasis | Pleural_Thickening,False
+00004808_009.png,Infiltration|Pneumonia,Infiltration | Nodule | Consolidation,False
+00015462_000.png,Consolidation|Infiltration|Pneumonia,Mass,False
+00013993_138.png,Atelectasis|Infiltration|Pneumothorax,Atelectasis | Effusion | Infiltration | Pneumothorax | Consolidation,False
+00021127_012.png,Pneumothorax,Atelectasis | Pneumothorax | Emphysema,False
+00030162_026.png,Infiltration|Nodule|Pneumothorax,Nodule | Pneumothorax,False
+00017324_020.png,Pneumothorax,Effusion | Emphysema | Pleural_Thickening,False
+00008607_001.png,Effusion|Infiltration|Pneumothorax,Infiltration | Pneumothorax | Emphysema,False
+00017611_006.png,Emphysema|Pneumothorax,Mass | Nodule | Pneumothorax | Emphysema,False
+00017036_010.png,Atelectasis|Infiltration|Pneumothorax,Effusion | Mass,False
+00011170_001.png,Atelectasis|Mass|Pneumothorax,No Finding,False
+00013310_050.png,Infiltration|Pneumothorax,Pneumothorax | Emphysema,False
+00003400_002.png,Mass|Pneumothorax,Atelectasis | Pneumothorax,False
+00010086_000.png,Atelectasis|Consolidation|Infiltration,Atelectasis | Consolidation,False
+00028385_000.png,Consolidation,Effusion,False
+00012884_005.png,Consolidation|Nodule,Infiltration | Nodule | Pneumothorax | Consolidation,False
+00009889_018.png,Consolidation|Effusion|Infiltration|Pneumothorax,Pneumothorax,False
+00021573_000.png,Consolidation|Fibrosis,Pneumothorax | Consolidation,False
+00017921_000.png,Consolidation,Nodule,False
+00013670_044.png,Consolidation|Infiltration|Mass,No Finding,False
+00029919_006.png,Atelectasis|Cardiomegaly|Consolidation|Effusion|Infiltration,Effusion | Infiltration | Consolidation,False
+00011925_054.png,Consolidation|Infiltration,Effusion | Consolidation | Edema,False
+00015605_027.png,Consolidation,Infiltration | Edema,False
+00004623_006.png,Edema|Effusion|Infiltration|Pleural_Thickening,Infiltration | Edema | Emphysema,False
+00013036_020.png,Edema|Infiltration,Effusion | Edema,False
+00002224_006.png,Edema,Edema,True
+00015650_000.png,Edema,Infiltration | Edema,False
+00018829_004.png,Edema,Atelectasis | Effusion | Infiltration | Edema,False
+00014058_002.png,Edema,Nodule,False
+00005288_011.png,Edema|Pneumonia,Effusion | Infiltration,False
+00012592_000.png,Edema|Effusion,Nodule,False
+00015606_033.png,Edema,Infiltration | Edema,False
+00012620_007.png,Edema,Mass | Edema,False
+00025454_007.png,Emphysema,Effusion | Emphysema,False
+00017504_045.png,Edema|Emphysema,Infiltration | Pneumonia | Edema,False
+00020450_019.png,Emphysema,Effusion | Pneumothorax | Emphysema,False
+00008168_013.png,Emphysema|Infiltration|Pneumothorax,Emphysema | Pleural_Thickening,False
+00012687_004.png,Emphysema|Pneumothorax,Pneumothorax | Emphysema,True
+00008008_016.png,Atelectasis|Emphysema|Infiltration|Nodule|Pneumothorax,Pneumothorax | Emphysema,False
+00012021_007.png,Atelectasis|Effusion|Emphysema|Pneumothorax,Infiltration | Consolidation,False
+00028572_003.png,Emphysema|Pneumothorax,Atelectasis | Pneumothorax | Emphysema,False
+00027278_007.png,Effusion|Emphysema|Infiltration|Pneumothorax,Effusion | Pneumothorax | Emphysema,False
+00012624_000.png,Emphysema,Atelectasis | Nodule,False
+00022415_003.png,Fibrosis,Fibrosis,True
+00016057_004.png,Fibrosis,Nodule | Consolidation | Fibrosis,False
+00011409_000.png,Fibrosis,Infiltration,False
+00016006_002.png,Fibrosis|Infiltration|Pleural_Thickening,Nodule | Fibrosis,False
+00010648_000.png,Effusion|Fibrosis,Effusion | Fibrosis | Pleural_Thickening,False
+00009445_004.png,Fibrosis,Infiltration,False
+00005067_002.png,Fibrosis,Pneumothorax,False
+00002628_001.png,Fibrosis|Pleural_Thickening,Emphysema | Pleural_Thickening,False
+00013648_010.png,Fibrosis|Mass,Fibrosis,False
+00013128_001.png,Fibrosis|Pleural_Thickening,Nodule,False
+00003029_017.png,Pleural_Thickening,Atelectasis,False
+00027430_000.png,Mass|Pleural_Thickening,No Finding,False
+00001504_011.png,Edema|Pleural_Thickening|Pneumonia,Infiltration | Mass | Edema | Pleural_Thickening,False
+00003685_005.png,Pleural_Thickening|Pneumothorax,Atelectasis | Effusion | Emphysema | Pleural_Thickening,False
+00005376_002.png,Pleural_Thickening|Pneumothorax,Pneumothorax | Consolidation,False
+00021361_003.png,Infiltration|Pleural_Thickening,Effusion | Edema,False
+00005612_002.png,Atelectasis|Infiltration|Pleural_Thickening,Infiltration | Nodule | Pleural_Thickening,False
+00029074_001.png,Infiltration|Nodule|Pleural_Thickening,Effusion | Nodule | Pleural_Thickening,False
+00022837_033.png,Mass|Pleural_Thickening,Mass | Emphysema | Pleural_Thickening,False
+00015171_002.png,Pleural_Thickening|Pneumothorax,Mass | Pneumothorax | Emphysema,False
+00017202_000.png,Hernia,Atelectasis | Effusion | Mass | Hernia,False
+00000385_001.png,Hernia,Infiltration | Hernia,False
+00009507_005.png,Hernia|Infiltration,Infiltration | Edema,False
+00009507_003.png,Effusion|Hernia,Infiltration | Pneumonia | Hernia,False
+00012609_002.png,Hernia,Mass | Nodule,False
+00013679_001.png,Hernia,Atelectasis | Hernia,False
+00006868_009.png,Hernia,Infiltration | Fibrosis,False
+00014125_027.png,Hernia,Mass,False
+00029817_004.png,Hernia|Infiltration,Hernia,False
+00000003_002.png,Hernia,Effusion | Emphysema | Hernia,False
