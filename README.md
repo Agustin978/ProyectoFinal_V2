@@ -6,9 +6,11 @@ Este proyecto implementa un sistema de aprendizaje profundo (Deep Learning) para
 **Nuevas Características Implementadas:**
 *   **Manejo de Desbalance Avanzado:** Uso combinado de **Undersampling** (clase mayoritaria "No Finding") y **WeightedRandomSampler** para forzar lotes equilibrados.
 *   **Aumentación de Datos (Data Augmentation):** Aplicación de transformaciones geométricas (Flips, Rotaciones) y filtros de frecuencia (UnsharpMask) para generalización.
-*   **Entrenamiento Reanudable (Checkpoints):** Sistema de guardado y carga automática (`checkpoint.pth`) de modelo y optimizador para evitar pérdida de progreso ante interrupciones.
+*   **Entrenamiento Reanudable (Checkpoints Robustos):** Sistema de guardado y carga automática (`checkpoint.pth`) de modelo, optimizador, scheduler y configuración de semillas (`random_split`) garantizando 100% de reproducibilidad ante interrupciones.
+*   **Optimizadores de Entrenamiento Avanzado:** Implementación de `CosineAnnealingWarmRestarts` para la tasa de aprendizaje, y `EarlyStopping` preventivo (paciencia de 5 épocas) para evitar *overfitting* al monitorear el Val AUC.
+*   **Sampling sin Sesgo Multietiqueta:** Uso de peso promedio (`get_mean_weight`) en el `WeightedRandomSampler` para no sobredimensionar y sesgar las co-ocurrencias de enfermedades raras.
 *   **Soporte Multi-Dispositivo Robusto:** Detección de gráficas AMD en Windows vía `torch-directml` con workaround específico para cálculos de pérdida matemáticamente incompatibles.
-*   **Métricas y Registro:** Cálculo de **AUC-ROC** y guardado automático en CSV por época.
+*   **Métricas Dinámicas y Calibración:** Cálculo de **AUC-ROC** y Sensibilidad Per-Clase en vivo durante el entrenamiento, con búsqueda final del umbral óptimo (Índice de Youden) pos-entrenamiento.
 
 ## 2. Estructura del Proyecto
 
@@ -59,7 +61,7 @@ Es el script orquestador del entrenamiento.
     *   Instancia `NIHChestXRayDataset` aplicando **undersampling** a la clase "No Finding" según `UNDERSAMPLE_RATE`.
 4.  **División**: Separa el dataset restante en 80% entrenamiento y 20% validación (Epoch-level) usando `random_split`.
 5.  **DataLoaders y Samplers**: 
-    *   Crea un `WeightedRandomSampler` que fuerza la aparición de imágenes con patologías raras.
+    *   Crea un `WeightedRandomSampler` que usa `get_mean_weight()`. Esto calcula el promedio de rareza anatómica real de la imagen, combatiendo el desbalance sin perjudicar imágenes con patologías múltiples.
     *   Crea los iteradores de entrenamiento (usando el Sampler) y validación.
 6.  **Modelo**: Instancia el modelo (`get_model`).
 7.  **Loss y Optimizador**: 
@@ -114,8 +116,8 @@ Encapsula la lógica de entrenamiento para mantener `main.py` limpio.
     *   Retorna `val_loss` y `val_auc`.
 
 ### 3.5 Segregación y Evaluación Científica
-*   **`src/data/create_test_set.py`**: Este script debe ejecutarse antes de cualquier entrenamiento. Recorre el CSV original, selecciona matemáticamente **10 imágenes aleatorias por cada una de las 14 patologías** y genera un listado "sagrado" (`holdout_test_set.csv`) de 140 imágenes que jamás serán vistas por la red neuronal durante su estudio.
-*   **`evaluate_model.py`**: Es el auditor final. Carga el `densenet_nih.pth` ya entrenado y lo evalúa **únicamente** sobre las 140 imágenes de la lista segregada. Por cada patología, emite una **Sensibilidad** y **Especificidad** precisas, además de guardar una tabla auditable (`evaluation_results.csv`) con cada predicción individual. Activa `model.eval()` y desactiva gradientes descartando así cualquier posibilidad de *Data Leakage*.
+*   **`src/data/create_test_set.py`**: Este script debe ejecutarse antes de cualquier entrenamiento. Recorre el CSV original, selecciona matemáticamente **20 imágenes aleatorias por cada una de las 14 patologías** y genera un listado "sagrado" (`holdout_test_set.csv`) de ~280 imágenes que jamás serán vistas por la red neuronal durante su estudio. Con 20 muestras, el intervalo de confianza estadístico mejora drásticamente (±22%).
+*   **`evaluate_model.py`**: Es el auditor final. Carga el `densenet_nih.pth` ya entrenado y lo evalúa **únicamente** sobre las ~280 imágenes de la lista segregada. Por cada patología, busca el Umbral Óptimo matemáticamente (Índice de Youden), traza las Curvas ROC, y emite una **Sensibilidad** y **Especificidad** precisas, además de guardar una tabla auditable (`evaluation_results.csv`). Activa `model.eval()` y desactiva gradientes descartando fuga de datos.
 
 ## 4. Diagrama de Funcionamiento
 

@@ -6,8 +6,8 @@ Este documento detalla qué sucede exactamente cuando ejecutas el comando `pytho
 
 Antes de que la red neuronal vea cualquier imagen, debemos separar rigurosamente un grupo de pacientes para el examen final. Este paso evita el Data Leakage (Fuga de datos).
 1.  **Lectura Inicial**: Abre el CSV original con los 112,000 registros.
-2.  **Muestreo Equitativo**: Selecciona 10 imágenes al azar por cada una de las 14 patologías usando una semilla matemática fija.
-3.  **La Lista Negra**: Guarda los nombres de esas 140 imágenes extraídas en el archivo `holdout_test_set.csv`.
+2.  **Muestreo Equitativo**: Selecciona 20 imágenes al azar por cada una de las 14 patologías usando una semilla matemática fija para asegurar intervalos de confianza ajustados (reduciendo la varianza).
+3.  **La Lista Negra**: Guarda los nombres de esas ~280 imágenes extraídas en el archivo `holdout_test_set.csv`.
 
 ---
 
@@ -41,7 +41,7 @@ Antes de nada, el código define las "reglas del juego" mediante constantes:
 
 2.  **Preparación de los Lotes (DataLoaders y Sampler)**:
     *   Primero, se separa en Train (80%) y Validation (20%).
-    *   **`WeightedRandomSampler`**: Es un selector inteligente para el set de Entrenamiento. Calcula qué patologías son las más raras y las elige a propósito con mucha más frecuencia. Esto asegura que cada paquete (batch) tenga ejemplos de casi todas las enfermedades, combatiendo el desbalance.
+    *   **`WeightedRandomSampler`**: Es un selector inteligente para el set de Entrenamiento. A través de la función `get_mean_weight()`, calcula la rareza promedio de las patologías presentes en la imagen, y sobre-muestrea de forma inteligente sin generar sesgos falsos en las imágenes con múltiples patologías.
     *   **`DataLoader`**: Empaqueta todo en grupos de tamaño `BATCH_SIZE` (ej. 8 imágenes a la vez).
 
 3.  **Inicialización del Modelo y Pérdida (Líneas 171-185)**:
@@ -59,11 +59,13 @@ Antes de nada, el código define las "reglas del juego" mediante constantes:
 5.  **El Bucle Principal (Líneas 207-244)**:
     *   Un bucle `for` que se repite hasta la época final marcada por `EPOCHS`.
     *   En cada vuelta (época):
-        1.  `trainer.train_one_epoch(...)`: El modelo estudia (Train).
-        2.  `trainer.validate(...)`: El modelo realiza un examen de práctica (Valid).
-        3.  Se guarda el progreso de la época (Loss, AUC, Tiempo) en `results.csv`.
-        4.  **Guardado Seguro (Checkpoint)**: Salva `checkpoint.pth` para poder reanudar si se apaga la PC.
-    *   Al final de todo el proceso de las 10 épocas, guarda una versión "limpia" de los pesos `densenet_nih.pth` lista para inferencia en producción.
+        1.  `trainer.train_one_epoch(...)`: El modelo estudia revisando el dataset (Train Loss).
+        2.  `trainer.validate(...)`: El modelo hace una prueba (Valid Loss, Macro AUC y AUC per-clase).
+        3.  `scheduler.step()`: Se actualiza el `CosineAnnealingWarmRestarts` suavizando y reiniciando el Learning Rate de forma cíclica para lograr el mínimo global.
+        4.  `early_stopping(val_auc)`: Vigila que el AUC esté mejorando. Si la red se estanca por 5 épocas seguidas, **detiene todo** automáticamente, ahorrando horas de cálculo inútil y over-fitting.
+        5.  Se guarda el progreso de la época en `results.csv` adjuntándolo automáticamente (o cargándolo desde uno previo si es que continuó un entrenamiento pausado).
+        6.  **Guardado Seguro (Checkpoint Robusto)**: Salva `checkpoint.pth` encriptando todos los parámetros clave (Semilla, Optimizador, Scheduler, Configs) para permitir reproducibilidad blindada si hay cortes.
+    *   Al final de todo el proceso, o dictaminado por el Early Stopping, se guarda `best_model.pth` y `densenet_nih.pth` con la versión maestra de la red lista para inferencia.
 
 ---
 
@@ -75,7 +77,7 @@ Esta clase (`NIHChestXRayDataset`) actúa como un bibliotecario. No lee todos lo
 1.  **Lectura del CSV**: Carga `Data_Entry_2017.csv` en memoria (`self.df`).
 2.  **Búsqueda de Imágenes**: Escanea el disco duro para ver qué imágenes existen realmente (`self.image_paths`).
 3.  **Filtrado Base**: Elimina del CSV las filas de imágenes que no se encontraron en el disco.
-4.  **Exclusión Estricta (Holdout Set)**: *¡Paso Crítico!* Lee la lista negra (`holdout_test_set.csv`) y **borra** esas 140 imágenes de la memoria antes de hacer nada más. La red neuronal nunca interactuará con ellas.
+4.  **Exclusión Estricta (Holdout Set)**: *¡Paso Crítico!* Lee la lista negra (`holdout_test_set.csv`) y **borra** esas ~280 imágenes de la memoria (DataFrame) antes de hacer nada más. La red neuronal jamás podrá entrenarse con ellas.
 5.  **Undersampling (Líneas 82-89)**:
     *   Separa las filas con 'No Finding' (sanos) y las enfermedades.
     *   Toma solo una fracción de los sanos (ej. el 25% o lo que dicte `UNDERSAMPLE_RATE`).
@@ -133,19 +135,19 @@ Esta clase `Trainer` hace el trabajo sucio del bucle de entrenamiento.
 
 Una vez terminado el entrenamiento (cuando `main.py` finaliza todas sus épocas y escupe el archivo `densenet_nih.pth`), entra en juego este script para evaluar científicamente al modelo.
 
-1.  **Carga del Test Set**: Lee la lista negra (`holdout_test_set.csv`) aislando únicamente las 140 imágenes.
-2.  **Modo Examen Estricto**: Carga el modelo guardado y ejecuta `model.eval()` y `torch.no_grad()`. Esto apaga por completo los motores de aprendizaje de la red neuronal, garantizando que el modelo **no pueda alterar sus pesos** mientras las examina.
-3.  **Predicción Pura**: El modelo diagnostica las 140 imágenes basándose en su `densenet_nih.pth`, sin trucos, ni Samplers, ni Data Augmentation.
-4.  **Veredicto**: Genera 14 Matrices de Confusión por consola midiendo *Sensibilidad* y *Especificidad* de cada patología, además de exportar una tabla auditable (`evaluation_results.csv`) registro por registro.
+1.  **Carga del Test Set**: Lee la lista negra (`holdout_test_set.csv`) aislando únicamente las ~280 imágenes puras.
+2.  **Modo Examen Estricto**: Carga el modelo guardado y ejecuta `model.eval()` y `torch.no_grad()`. Esto apaga por completo los motores de aprendizaje de la red neuronal.
+3.  **Predicción Autónoma**: El modelo diagnostica las ~280 imágenes basándose en su `densenet_nih.pth`, sin trucos, ni Samplers, ni Data Augmentation, y devuelve en bruto su certeza estadística (desde 0.0 a 1.0) usando la función Sigmoide.
+4.  **Veredicto (Índice de Youden)**: El script analiza automáticamente qué Umbral Matemático da el mejor cruce numérico posible de TP (True Positive) y TN (True Negative) por patología, gráfica las 14 Curvas ROC con sus AUC, y finalmente devuelve un `evaluation_results.csv` auditado.
 
 ---
 
 ## Resumen Final del Flujo de Datos Cronológico
 
-1.  `create_test_set.py` -> Aísla 140 archivos críticos al `holdout_test_set.csv`
+1.  `create_test_set.py` -> Aísla ~280 archivos críticos al `holdout_test_set.csv`
 2.  **Inicio de `main.py`:**
 3.  **Disco Duro** -> `dataset.py` (Lee archivo general)
-4.  `dataset.py` -> Chequea `holdout_test_set.csv` y purga esas 140 imágenes.
+4.  `dataset.py` -> Chequea `holdout_test_set.csv` y purga esas ~280 imágenes de entrenamiento.
 5.  `dataset.py` -> Reduce la clase mayoritaria (Undersampling).
 6.  `dataset.py` -> `transforms` (Voltea, Rota y Afila bordes al vuelo).
 7.  `transforms` -> `WeightedRandomSampler` (Fuerza aparición de Minorías Clínicas).
