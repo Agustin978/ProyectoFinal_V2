@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split, Dataset, WeightedRandomSampler
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torchvision import transforms
 import pandas as pd
 import numpy as np
@@ -11,7 +12,6 @@ import time
 from src.data.dataset import NIHChestXRayDataset
 from src.data.transforms import RandomGaussianBlur, RandomUnsharpMask
 
-from src.data.dataset import NIHChestXRayDataset
 from src.models.densenet import get_model
 from src.training.trainer import Trainer
 
@@ -19,13 +19,35 @@ from src.training.trainer import Trainer
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
 BATCH_SIZE = 8 # Ajustado segun VRAM (1024x1024 input original -> Resized to 224)()
 LEARNING_RATE = 1e-4
-EPOCHS = 35
+EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
-UNDERSAMPLE_RATE = 0.30 # Mantener 30% de 'No Finding'
+UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
 CSV_FILE = "results.csv"
 CHECKPOINT_FILE = "checkpoint.pth"
 EXCLUDE_LIST_FILE = "holdout_test_set.csv" # Imagenes reservadas estrictamente para test final
+RANDOM_SEED = 42 # Semilla estandar izada para el split
+
+class EarlyStopping:
+    """Detiene el entrenamiento si la métrica de validación no mejora luego de una paciencia dada."""
+    def __init__(self, patience=5, delta=0.001):
+        self.patience = patience
+        self.delta = delta
+        self.best_score = None
+        self.counter = 0
+        self.early_stop = False
+
+    def __call__(self, val_auc):
+        if self.best_score is None:
+            self.best_score = val_auc
+        elif val_auc < self.best_score + self.delta:
+            self.counter += 1
+            print(f"EarlyStopping: paciencia en {self.counter}/{self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = val_auc
+            self.counter = 0
 
 class AugmentedDataset(Dataset):
     """Envolvedor para aplicar transformaciones a un subconjunto."""
@@ -77,21 +99,26 @@ def calculate_sampler_weights(subset, dataset):
     sample_weights = []
     
     # Pre-calcular mapa para mayor velocidad
-    def get_max_weight(labels_str):
+    def get_mean_weight(labels_str):
         if labels_str == 'No Finding':
             return 0.05 / len(df) # Peso bajo para No Finding relativo a patologias
             # O simplemente 1/count_no_finding, pero queremos boostear las raras.
         
-        w = 0.0
+        total_weight = 0.0
+        active_labels = 0
         for label in all_labels:
             if label in labels_str:
-                w = max(w, class_weights[label])
-        return w
+                total_weight += class_weights[label]
+                active_labels += 1
+                
+        if active_labels > 0:
+             return total_weight / active_labels
+        return 0.0
 
-    print("Calculando pesos de muestreo...")
+    print("Calculando pesos de muestreo (Media)...")
     # Usando list comprehension simple para mayor velocidad en series de pandas
     labels_series = df['Finding Labels']
-    sample_weights_list = labels_series.apply(get_max_weight).tolist()
+    sample_weights_list = labels_series.apply(get_mean_weight).tolist()
     
     return sample_weights_list
 
@@ -165,10 +192,14 @@ def main():
         print(f"Error: {e}")
         return
 
-    # 3. Dividir en Train/Validation (80/20)
+    # 3. Dividir en Train/Validation (80/20) de forma determinista
     train_size = int(0.8 * len(full_dataset_raw))
     val_size = len(full_dataset_raw) - train_size
-    train_subset, val_subset = random_split(full_dataset_raw, [train_size, val_size])
+    
+    # IMPORTANTE: Forzar una semilla estricta para garantizar que el set de validación
+    # y entrenamiento sean siempres LOS MISMOS en cada reinicio.
+    seed_generator = torch.Generator().manual_seed(RANDOM_SEED)
+    train_subset, val_subset = random_split(full_dataset_raw, [train_size, val_size], generator=seed_generator)
     
     # 4. Envolver subsets con sus respectivas transformaciones
     train_dataset = AugmentedDataset(train_subset, transform=train_transforms)
@@ -205,6 +236,12 @@ def main():
     # Para multi-label classification usamos BCEWithLogitsLoss con pos_weight
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weights) 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    
+    # Schedulers y Controladores de Entrenamiento
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
+    early_stopping = EarlyStopping(patience=5, delta=0.001)
+    best_val_auc = 0.0
+    results = []
 
     # 6.5 Cargar Checkpoint si existe
     start_epoch = 1
@@ -214,8 +251,26 @@ def main():
             checkpoint = torch.load(CHECKPOINT_FILE, map_location='cpu', weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                
+            if 'best_val_auc' in checkpoint:
+                best_val_auc = checkpoint['best_val_auc']
+                early_stopping.best_score = best_val_auc
+                
             start_epoch = checkpoint['epoch'] + 1
             print(f"Resumiendo entrenamiento desde la epoca {start_epoch}")
+            
+            # Recuperar CSV Results de sesiones pasadas para no sobreescribir el archivo
+            if os.path.exists(CSV_FILE):
+                try:
+                    prev_results = pd.read_csv(CSV_FILE)
+                    results = prev_results.to_dict('records')
+                    print(f"Cargado historial previo ({len(results)} epocas) desde {CSV_FILE}.")
+                except Exception as ex:
+                    print(f"[Advertencia] No se pudo cargar historial CSV: {ex}")
+                    
         except Exception as e:
             print(f"Error cargando checkpoint: {e}. Se iniciara desde cero.")
     else:
@@ -225,7 +280,6 @@ def main():
     trainer = Trainer(model, train_loader, val_loader, criterion, optimizer, device)
 
     # 8. Bucle principal
-    results = []
     
     for epoch in range(start_epoch, EPOCHS + 1):
         start_time = time.time()
@@ -235,34 +289,54 @@ def main():
         
         epoch_duration = end_time - start_time
         
-        print(f"Epoch {epoch}/{EPOCHS} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f} - Val AUC: {val_auc:.4f} - Time: {epoch_duration:.2f}s")
+        print(f"Epoch {epoch}/{EPOCHS} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f} - Val AUC: {val_auc:.4f} - LR: {scheduler.get_last_lr()[0]:.6f} - Time: {epoch_duration:.2f}s")
+        
+        # Actualizar Schedulers y Early Stopping
+        scheduler.step()
+        early_stopping(val_auc)
+        
+        if val_auc > best_val_auc:
+            best_val_auc = val_auc
+            torch.save(model.state_dict(), "best_model.pth")
+            print(f"  -> Nuevo mejor modelo guardado (best_model.pth) | AUC: {best_val_auc:.4f}")
         
         results.append({
             'epoch': epoch,
             'train_loss': train_loss,
             'val_loss': val_loss,
             'val_auc': val_auc,
+            'lr': scheduler.get_last_lr()[0],
             'duration_sec': epoch_duration
         })
         
         # Guardar CSV cada epoca
-        # Si estamos resumiendo, deberiamos idealmente hacer append, pero por simplicidad reescribimos con lo que tenemos en memoria
-        # (Nota: 'results' empieza vacio aqu. Si quisieramos historial completo en CSV, deberiamos leer el CSV existente antes)
         pd.DataFrame(results).to_csv(CSV_FILE, index=False)
         
-        # Guardar Checkpoint
+        # Guardar Checkpoint Robusto
         checkpoint = {
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': train_loss
+            'scheduler_state_dict': scheduler.state_dict(),
+            'loss': train_loss,
+            'best_val_auc': best_val_auc,
+            'config': {
+                 'random_seed': RANDOM_SEED,
+                 'batch_size': BATCH_SIZE,
+                 'learning_rate': LEARNING_RATE,
+                 'undersample_rate': UNDERSAMPLE_RATE
+            }
         }
         torch.save(checkpoint, CHECKPOINT_FILE)
         
-        # Guardar modelo final (solo pesos, para compatibilidad con inferencia)
+        # Guardar modelo final en cada iteracion por prevencion
         torch.save(model.state_dict(), "densenet_nih.pth")
         
-    print("Entrenamiento finalizado y modelo guardado.")
+        if early_stopping.early_stop:
+            print(f"\n[!] Entrenenamiento detenido tempranamente por Early Stopping (Paciencia {early_stopping.patience} alcanzada).")
+            break
+        
+    print("Entrenamiento finalizado. El mejor modelo esta guardado como 'best_model.pth'.")
 
 if __name__ == '__main__':
     # Fix para multiprocessing en Windows
