@@ -19,7 +19,7 @@ from src.training.trainer import Trainer
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
 BATCH_SIZE = 8 # Ajustado segun VRAM (1024x1024 input original -> Resized to 224)()
 LEARNING_RATE = 1e-4
-EPOCHS = 10
+EPOCHS = 20
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
 UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
