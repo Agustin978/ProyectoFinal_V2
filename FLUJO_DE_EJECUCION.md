@@ -20,7 +20,7 @@ Antes de nada, el código define las "reglas del juego" mediante constantes:
 *   `DATA_DIR`: Dónde buscar las imágenes.
 *   `BATCH_SIZE = 8`: Cuántas imágenes procesar a la vez. Si tu computadora se queda sin memoria, este número baja.
 *   `IMAGE_SIZE = 224`: Las redes neuronales necesitan entradas de tamaño fijo. Las imágenes originales (1024x1024) se encogerán a 224x224.
-*   `UNDERSAMPLE_RATE = 0.25`: Se descartará el 75% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
+*   `UNDERSAMPLE_RATE = 0.30`: Se descartará el 70% de las imágenes "sanas" (No Finding) para que el modelo no aprenda solo a decir "sano".
 *   `CHECKPOINT_FILE`: El archivo donde se guardará el estado exacto del entrenamiento (pesos, optimizador, época) para poder reanudarlo si se corta.
 
 ### Inicio de `main()`
