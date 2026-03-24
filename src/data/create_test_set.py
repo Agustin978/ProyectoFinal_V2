@@ -12,7 +12,7 @@ RANDOM_SEED = 42  # Para reproducibilidad
 ALL_LABELS = [
     'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 
     'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 
-    'Fibrosis', 'Pleural_Thickening', 'Hernia'
+    'Fibrosis', 'Pleural_Thickening', 'Hernia', 'No Finding'
 ]
 
 def main():
@@ -25,8 +25,8 @@ def main():
     holdout_records = []
     
     # Pre-calcular que imagenes tienen cada patologia para busqueda rapida
-    LABELS_TO_EXTRACT = ALL_LABELS + ['No Finding']
-    pathology_to_images = {label: [] for label in LABELS_TO_EXTRACT}
+    #LABELS_TO_EXTRACT = ALL_LABELS + ['No Finding']
+    pathology_to_images = {label: [] for label in ALL_LABELS}
     
     for idx, row in df.iterrows():
         labels_str = row['Finding Labels']
@@ -38,7 +38,7 @@ def main():
                     pathology_to_images[label].append(idx)
                     
     print("\nExtrayendo imagenes para el conjunto de validacion...")
-    for label in LABELS_TO_EXTRACT:
+    for label in ALL_LABELS:
         available_indices = pathology_to_images[label]
         # Filtrar aquellos que ya elegimos por otra patologia (evitar duplicados en el test set aunque tengan multiples etiquetas)
         available_indices = [idx for idx in available_indices if idx not in holdout_indices]
