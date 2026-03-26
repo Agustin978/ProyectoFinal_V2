@@ -21,16 +21,15 @@ OUTPUT_RESULTS_CSV = "hybrid_evaluation_results.csv"
 IMAGE_SIZE = 224
 NUM_CLASSES = 14
 
-# Aquí definimos las rutas de los 3 modelos (Ajustar según donde los guarden)
-# En caso de no existir, el script avisará.
-MODEL_1_PATH = "best_model.pth"          # Alto Recall (Tu modelo con Oversampling)
-MODEL_2_PATH = "best_model_T1.pth" # Alta Especif. (Modelo sin tanto oversampling)
-MODEL_3_PATH = "best_model_T2.pth"     # Modelo Balanceado General
+MODEL_1_PATH = "best_model.pth"          # Alto Recall (Modelo con Oversampling)
+MODEL_2_PATH = "best_model_T1.pth"       # Alta Especif. (Modelo sin tanto oversampling)
+MODEL_3_PATH = "best_model_T2.pth"       # Modelo Balanceado General
 
+# REVERTIDO A 14 PATOLOGÍAS. La red no tiene neurona 15. "No Finding" = puros ceros [0,0,0...]
 ALL_LABELS = [
     'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 
     'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 
-    'Fibrosis', 'Pleural_Thickening', 'Hernia', 'No Finding'
+    'Fibrosis', 'Pleural_Thickening', 'Hernia'
 ]
 
 def load_environment():
@@ -54,17 +53,51 @@ def load_environment():
     return device
 
 def load_safe(filepath, model, device):
-    """Carga pesos de forma segura cross-hardware (NVIDIA -> AMD) evitando crashes."""
-    data = torch.load(filepath, map_location=device, weights_only=False)
-    if isinstance(data, dict) and 'model_state_dict' in data:
-        # Es un checkpoint robusto
-        model.load_state_dict(data['model_state_dict'])
-    else:
-        # Es un simple densenet_nih.pth directamente con pesos
-        model.load_state_dict(data)
+    """Carga pesos de forma segura cross-hardware e inyecta parches de arquitectura."""
+    # MAPEO PRIMERO AL CPU para limpiar cualquier protocolo NVIDIA específico que pueda causar incompatibilidades en AMD.
+    data = torch.load(filepath, map_location=torch.device('cpu'), weights_only=False)
+    
+    # Extraer el diccionario de estado real
+    state_dict = data['model_state_dict'] if (isinstance(data, dict) and 'model_state_dict' in data) else data
+    
+    # --- PARCHE CIRUJANO: COMPATIBILIDAD DE ARQUITECTURAS ---
+    # Si un modelo armó su cabeza de red usando un nn.Sequential, renombramos sus tensores 
+    # finales para que calcen exactamente en nuestra arquitectura nn.Linear simple.
+    if 'classifier.1.weight' in state_dict:
+        print(f"  [Parche Activado] Adaptando estructura neuronal del modelo en {os.path.basename(filepath)}...")
+        state_dict['classifier.weight'] = state_dict.pop('classifier.1.weight')
+        state_dict['classifier.bias'] = state_dict.pop('classifier.1.bias')
+        
+        # Eliminar cualquier otro rastro de su Sequential (como classifier.0) para evitar que estorben
+        keys_to_delete = [k for k in state_dict.keys() if k.startswith('classifier.') and k != 'classifier.weight' and k != 'classifier.bias']
+        for k in keys_to_delete:
+            del state_dict[k]
+    # --------------------------------------------------------
+    
+    # Cargar con strict=False permite incrustar la matrix aunque haya ligeras variables huérfanas
+    model.load_state_dict(state_dict, strict=False)
+        
+    model = model.to(device)
     model.eval()
     return model
 
+
+"""
+def load_safe(filepath, model, device):
+    #Carga pesos de forma segura cross-hardware evadiendo crashes de compatibilidad.
+    # Carga primero en 'cpu' para limpiar el protocolo NVIDIA
+    data = torch.load(filepath, map_location=torch.device('cpu'), weights_only=False)
+    
+    if isinstance(data, dict) and 'model_state_dict' in data:
+        model.load_state_dict(data['model_state_dict'])
+    else:
+        model.load_state_dict(data)
+        
+    # Una vez limpiado, se manda de forma segura a la GPU AMD
+    model = model.to(device)
+    model.eval()
+    return model
+"""
 def get_image_paths(data_dir):
     """Mapea recursivamente los nombres de archivo a sus rutas absolutas."""
     image_paths = {}
