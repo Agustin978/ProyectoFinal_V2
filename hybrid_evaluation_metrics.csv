@@ -1,0 +1,15 @@
+Pathology,TP,FN,TN,FP,Sensitivity_%,Specificity_%
+Atelectasis,38,18,163,81,67.86,66.8
+Cardiomegaly,23,4,239,34,85.19,87.55
+Effusion,54,18,183,45,75.0,80.26
+Infiltration,44,44,173,39,50.0,81.6
+Mass,29,11,220,40,72.5,84.62
+Nodule,35,5,134,126,87.5,51.54
+Pneumonia,17,7,217,59,70.83,78.62
+Pneumothorax,24,8,238,30,75.0,88.81
+Consolidation,34,7,185,74,82.93,71.43
+Edema,34,6,218,42,85.0,83.85
+Emphysema,21,5,253,21,80.77,92.34
+Fibrosis,22,4,210,64,84.62,76.64
+Pleural_Thickening,14,11,210,65,56.0,76.36
+Hernia,15,5,273,7,75.0,97.5
