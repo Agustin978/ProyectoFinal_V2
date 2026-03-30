@@ -60,7 +60,18 @@ def load_safe(filepath, model, device):
         keys_to_delete = [k for k in list(state_dict.keys()) if k.startswith('classifier.') and k != 'classifier.weight' and k != 'classifier.bias']
         for k in keys_to_delete:
             del state_dict[k]
-    model.load_state_dict(state_dict, strict=False)
+    # PROTEGER CONTRA EL "SILENT KILLER" (Pesos ignorados)
+    load_status = model.load_state_dict(state_dict, strict=False)
+    
+    if load_status.missing_keys or load_status.unexpected_keys:
+        print(f"\n[⚠️ ADVERTENCIA CRITICA] Problema de Mapeo en {os.path.basename(filepath)}:")
+        if load_status.missing_keys:
+            print(f"  -> {len(load_status.missing_keys)} LLAVES FALTANTES (¡Se usan pesos aleatorios iniciales!):")
+            print(f"     Ej: {load_status.missing_keys[:5]}")
+        if load_status.unexpected_keys:
+            print(f"  -> {len(load_status.unexpected_keys)} LLAVES SOBRANTES (Se ignoraron):")
+            print(f"     Ej: {load_status.unexpected_keys[:5]}")
+            
     model = model.to(device)
     model.eval()
     return model
@@ -207,16 +218,16 @@ def main():
         
         # Enrutamiento de las predicciones
         if winner_idx == 0:
-            winner_name = "Modelo 1"
+            winner_name = "Modelo 1 (AMD)"
             winner_thresh = th1
             # Imponer la voluntad del Modelo 1 sobre todos los pacientes para ESTA patologia
             for i in range(len(y_t)): router_preds[i, p_idx] = 1 if all_probs_m1[i, p_idx] >= th1 else 0
         elif winner_idx == 1:
-            winner_name = "Modelo 2"
+            winner_name = "Modelo 2 (NV-T1)"
             winner_thresh = th2
             for i in range(len(y_t)): router_preds[i, p_idx] = 1 if all_probs_m2[i, p_idx] >= th2 else 0
         else:
-            winner_name = "Modelo 3"
+            winner_name = "Modelo 3 (NV-T2)"
             winner_thresh = th3
             for i in range(len(y_t)): router_preds[i, p_idx] = 1 if all_probs_m3[i, p_idx] >= th3 else 0
             
