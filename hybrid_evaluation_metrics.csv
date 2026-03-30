@@ -1,15 +1,15 @@
-Pathology,TP,FN,TN,FP,Sensitivity_%,Specificity_%
-Atelectasis,38,18,163,81,67.86,66.8
-Cardiomegaly,23,4,239,34,85.19,87.55
-Effusion,54,18,183,45,75.0,80.26
-Infiltration,44,44,173,39,50.0,81.6
-Mass,29,11,220,40,72.5,84.62
-Nodule,35,5,134,126,87.5,51.54
-Pneumonia,17,7,217,59,70.83,78.62
-Pneumothorax,24,8,238,30,75.0,88.81
-Consolidation,34,7,185,74,82.93,71.43
-Edema,34,6,218,42,85.0,83.85
-Emphysema,21,5,253,21,80.77,92.34
-Fibrosis,22,4,210,64,84.62,76.64
-Pleural_Thickening,14,11,210,65,56.0,76.36
-Hernia,15,5,273,7,75.0,97.5
+Pathology,Winning_Model,TP,FN,TN,FP,Sensitivity_%,Specificity_%
+Atelectasis,Modelo 1,41,15,154,90,73.21,63.11
+Cardiomegaly,Modelo 2,26,1,223,50,96.3,81.68
+Effusion,Modelo 1,58,14,174,54,80.56,76.32
+Infiltration,Modelo 3,67,21,133,79,76.14,62.74
+Mass,Modelo 2,33,7,180,80,82.5,69.23
+Nodule,Modelo 3,29,11,163,97,72.5,62.69
+Pneumonia,Modelo 3,20,4,175,101,83.33,63.41
+Pneumothorax,Modelo 3,27,5,218,50,84.38,81.34
+Consolidation,Modelo 1,36,5,175,84,87.8,67.57
+Edema,Modelo 1,36,4,214,46,90.0,82.31
+Emphysema,Modelo 1,21,5,250,24,80.77,91.24
+Fibrosis,Modelo 3,19,7,230,44,73.08,83.94
+Pleural_Thickening,Modelo 2,21,4,171,104,84.0,62.18
+Hernia,Modelo 3,17,3,265,15,85.0,94.64

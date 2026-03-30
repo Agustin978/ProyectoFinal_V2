@@ -1,15 +1,15 @@
 Pathology,Winner_Model,TP,FN,TN,FP,Sensitivity_%,Specificity_%
-Atelectasis,Modelo 1,41,15,154,90,73.21,63.11
-Cardiomegaly,Modelo 2,26,1,223,50,96.3,81.68
-Effusion,Modelo 1,58,14,174,54,80.56,76.32
-Infiltration,Modelo 3,67,21,133,79,76.14,62.74
-Mass,Modelo 2,33,7,180,80,82.5,69.23
-Nodule,Modelo 3,29,11,163,97,72.5,62.69
-Pneumonia,Modelo 3,20,4,175,101,83.33,63.41
-Pneumothorax,Modelo 2,30,2,195,73,93.75,72.76
-Consolidation,Modelo 1,36,5,175,84,87.8,67.57
-Edema,Modelo 1,36,4,214,46,90.0,82.31
-Emphysema,Modelo 1,21,5,250,24,80.77,91.24
-Fibrosis,Modelo 3,19,7,230,44,73.08,83.94
-Pleural_Thickening,Modelo 2,21,4,171,104,84.0,62.18
-Hernia,Modelo 3,17,3,265,15,85.0,94.64
+Atelectasis,Modelo 1 (AMD),41,15,154,90,73.21,63.11
+Cardiomegaly,Modelo 2 (NV-T1),26,1,223,50,96.3,81.68
+Effusion,Modelo 1 (AMD),58,14,174,54,80.56,76.32
+Infiltration,Modelo 3 (NV-T2),67,21,133,79,76.14,62.74
+Mass,Modelo 2 (NV-T1),33,7,180,80,82.5,69.23
+Nodule,Modelo 3 (NV-T2),29,11,163,97,72.5,62.69
+Pneumonia,Modelo 3 (NV-T2),20,4,175,101,83.33,63.41
+Pneumothorax,Modelo 2 (NV-T1),30,2,195,73,93.75,72.76
+Consolidation,Modelo 1 (AMD),36,5,175,84,87.8,67.57
+Edema,Modelo 1 (AMD),36,4,214,46,90.0,82.31
+Emphysema,Modelo 1 (AMD),21,5,250,24,80.77,91.24
+Fibrosis,Modelo 3 (NV-T2),19,7,230,44,73.08,83.94
+Pleural_Thickening,Modelo 2 (NV-T1),21,4,171,104,84.0,62.18
+Hernia,Modelo 3 (NV-T2),17,3,265,15,85.0,94.64
