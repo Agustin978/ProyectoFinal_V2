@@ -17,7 +17,7 @@ from src.models.densenet import get_model
 
 # Configuracion
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-MODEL_PATH = "densenet_nih.pth"
+MODEL_PATH = "best_model_V1.pth"
 TEST_SET_CSV = "holdout_test_set.csv"
 OUTPUT_RESULTS_CSV = "evaluation_results.csv"
 OUTPUT_ROC_PLOT = "roc_curves_per_class.png"
