@@ -19,14 +19,57 @@ from src.training.trainer import Trainer
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
 BATCH_SIZE = 8 # Ajustado segun VRAM (1024x1024 input original -> Resized to 224)()
 LEARNING_RATE = 1e-4
-EPOCHS = 20
+EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
 UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
+RESUME_FROM = "best_model_T2.pth" # Ej: "best_model.pth". Aplica Transfer Learning inyectando pesos previos.
 CSV_FILE = "results.csv"
 CHECKPOINT_FILE = "checkpoint.pth"
 EXCLUDE_LIST_FILE = "holdout_test_set.csv" # Imagenes reservadas estrictamente para test final
 RANDOM_SEED = 42 # Semilla estandar izada para el split
+
+def get_next_version(base_name):
+    """Genera un sufijo _Vn para evitar sobreescribir archivos existentes."""
+    if not os.path.exists(base_name):
+        return base_name
+    name, ext = os.path.splitext(base_name)
+    version = 1
+    new_name = f"{name}_V{version}{ext}"
+    while os.path.exists(new_name):
+        version += 1
+        new_name = f"{name}_V{version}{ext}"
+    return new_name
+
+def load_checkpoint_safe(filepath, model):
+    """Carga pesos via Transfer Learning inyectando parches de arquitectura y aborto duro."""
+    print(f"\n[TRANSFER LEARNING] Intentando cargar pesos base desde: {filepath}")
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f" No se encontró el modelo base: {filepath}")
+        
+    data = torch.load(filepath, map_location=torch.device('cpu'), weights_only=False)
+    state_dict = data['model_state_dict'] if (isinstance(data, dict) and 'model_state_dict' in data) else data
+    
+    if 'classifier.1.weight' in state_dict:
+        print(f"  [Parche Activado] Adaptando estructura neuronal Sequential a Linear...")
+        state_dict['classifier.weight'] = state_dict.pop('classifier.1.weight')
+        state_dict['classifier.bias'] = state_dict.pop('classifier.1.bias')
+        keys_to_delete = [k for k in list(state_dict.keys()) if k.startswith('classifier.') and k not in ['classifier.weight', 'classifier.bias']]
+        for k in keys_to_delete:
+            del state_dict[k]
+            
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    
+    # Validación Dura (Hard-Abort)
+    bad_keys = [k for k in missing_keys if 'classifier.weight' in k or 'classifier.bias' in k]
+    if bad_keys:
+        raise RuntimeError(f"\n[!] ABORTO DURO: Incompatibilidad de Arquitectura. \n"
+                           f"Se perdieron las capas vitales de decisión al cargar '{filepath}'. \n"
+                           f"Llaves perdidas: {bad_keys}\n"
+                           f"El entrenamiento se aboró para evitar corromper los pesos sanos.")
+                           
+    print("  -> Transfer Learning exitoso. El modelo arrancará con este conocimiento previo.\n")
+    return model
 
 class EarlyStopping:
     """Detiene el entrenamiento si la métrica de validación no mejora luego de una paciencia dada."""
@@ -98,11 +141,14 @@ def calculate_sampler_weights(subset, dataset):
     # Asignar peso específico a cada muestra
     sample_weights = []
     
+    # Conteo correcto para la clase sana
+    count_no_finding = (df['Finding Labels'] == 'No Finding').sum()
+    no_finding_weight = 1.0 / count_no_finding if count_no_finding > 0 else 0.0
+    
     # Pre-calcular mapa para mayor velocidad
     def get_mean_weight(labels_str):
         if labels_str == 'No Finding':
-            return 0.05 / len(df) # Peso bajo para No Finding relativo a patologias
-            # O simplemente 1/count_no_finding, pero queremos boostear las raras.
+            return no_finding_weight # Corregido: Ya no se anula al grupo Sano
         
         total_weight = 0.0
         active_labels = 0
@@ -123,6 +169,16 @@ def calculate_sampler_weights(subset, dataset):
     return sample_weights_list
 
 def main():
+    global CSV_FILE, CHECKPOINT_FILE
+    
+    # Aplicar Auto-Versionado para no pisar ejecuciones pasadas
+    CSV_FILE = get_next_version(CSV_FILE)
+    CHECKPOINT_FILE = get_next_version(CHECKPOINT_FILE)
+    BEST_MODEL_OUT = get_next_version("best_model.pth")
+    FINAL_MODEL_OUT = get_next_version("densenet_nih.pth")
+    
+    print(f"Archivos de salida asignados:\n - {BEST_MODEL_OUT}\n - {CSV_FILE}\n")
+
     # Deteccion de dispositivo con soporte para DirectML (AMD en Windows)
     try:
         import torch_directml
@@ -223,6 +279,11 @@ def main():
 
     # 5. Modelo
     model = get_model(num_classes=NUM_CLASSES, pretrained=True)
+    
+    # Fase 6: Inyectar conocimiento ajeno (Transfer Learning de companeros/Kaggle)
+    if RESUME_FROM is not None:
+        model = load_checkpoint_safe(RESUME_FROM, model)
+        
     model = model.to(device)
 
     # 6. Loss y Optimizador
@@ -243,38 +304,12 @@ def main():
     best_val_auc = 0.0
     results = []
 
-    # 6.5 Cargar Checkpoint si existe
+    # 6.5 Cargar Checkpoint para reanudar mid-run (Ignorado al usar _Vn)
     start_epoch = 1
-    if os.path.exists(CHECKPOINT_FILE):
-        print(f"Cargando checkpoint desde {CHECKPOINT_FILE}...")
-        try:
-            checkpoint = torch.load(CHECKPOINT_FILE, map_location='cpu', weights_only=False)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            
-            if 'scheduler_state_dict' in checkpoint:
-                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                
-            if 'best_val_auc' in checkpoint:
-                best_val_auc = checkpoint['best_val_auc']
-                early_stopping.best_score = best_val_auc
-                
-            start_epoch = checkpoint['epoch'] + 1
-            print(f"Resumiendo entrenamiento desde la epoca {start_epoch}")
-            
-            # Recuperar CSV Results de sesiones pasadas para no sobreescribir el archivo
-            if os.path.exists(CSV_FILE):
-                try:
-                    prev_results = pd.read_csv(CSV_FILE)
-                    results = prev_results.to_dict('records')
-                    print(f"Cargado historial previo ({len(results)} epocas) desde {CSV_FILE}.")
-                except Exception as ex:
-                    print(f"[Advertencia] No se pudo cargar historial CSV: {ex}")
-                    
-        except Exception as e:
-            print(f"Error cargando checkpoint: {e}. Se iniciara desde cero.")
-    else:
-        print("No se encontro checkpoint. Iniciando entrenamiento desde cero.")
+    # Nota: Como ahora auto-versionamos CHECKPOINT_FILE, os.path.exists
+    # siempre será Falso a menos que se fuerce el nombre manualmente.
+    # El usuario pidió empezar limpio siempre vía RESUME_FROM.
+    print(f"El entrenamiento volcará progresos en {CHECKPOINT_FILE} desde cero.")
 
     # 7. Entrenador
     trainer = Trainer(model, train_loader, val_loader, criterion, optimizer, device)
@@ -297,8 +332,8 @@ def main():
         
         if val_auc > best_val_auc:
             best_val_auc = val_auc
-            torch.save(model.state_dict(), "best_model.pth")
-            print(f"  -> Nuevo mejor modelo guardado (best_model.pth) | AUC: {best_val_auc:.4f}")
+            torch.save(model.state_dict(), BEST_MODEL_OUT)
+            print(f"  -> Nuevo mejor modelo guardado ({BEST_MODEL_OUT}) | AUC: {best_val_auc:.4f}")
         
         results.append({
             'epoch': epoch,
@@ -330,13 +365,13 @@ def main():
         torch.save(checkpoint, CHECKPOINT_FILE)
         
         # Guardar modelo final en cada iteracion por prevencion
-        torch.save(model.state_dict(), "densenet_nih.pth")
+        torch.save(model.state_dict(), FINAL_MODEL_OUT)
         
         if early_stopping.early_stop:
             print(f"\n[!] Entrenenamiento detenido tempranamente por Early Stopping (Paciencia {early_stopping.patience} alcanzada).")
             break
         
-    print("Entrenamiento finalizado. El mejor modelo esta guardado como 'best_model.pth'.")
+    print(f"Entrenamiento finalizado. El mejor modelo esta guardado como '{BEST_MODEL_OUT}'.")
 
 if __name__ == '__main__':
     # Fix para multiprocessing en Windows
