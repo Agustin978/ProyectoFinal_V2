@@ -14,13 +14,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Imports locales
 from src.models.densenet import get_model
+from src.utils.versioning import get_next_version
 
 # Configuracion
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-MODEL_PATH = "best_model_V1.pth"
+MODEL_PATH = "best_model_20260402_161254.pth"
 TEST_SET_CSV = "holdout_test_set.csv"
-OUTPUT_RESULTS_CSV = "evaluation_results.csv"
-OUTPUT_ROC_PLOT = "roc_curves_per_class.png"
+OUTPUT_RESULTS_CSV = get_next_version("evaluation_results.csv")
+OUTPUT_ROC_PLOT = get_next_version("roc_curves_per_class.png")
 IMAGE_SIZE = 224
 NUM_CLASSES = 14
 
