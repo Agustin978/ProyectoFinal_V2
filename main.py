@@ -14,6 +14,7 @@ from src.data.transforms import RandomGaussianBlur, RandomUnsharpMask
 
 from src.models.densenet import get_model
 from src.training.trainer import Trainer
+from src.utils.versioning import get_next_version
 
 # CONFIGURACION
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
@@ -22,24 +23,14 @@ LEARNING_RATE = 1e-4
 EPOCHS = 10
 NUM_CLASSES = 14
 IMAGE_SIZE = 224
-UNDERSAMPLE_RATE = 0.25 # Mantener 25% de 'No Finding'
-RESUME_FROM = "best_model_T2.pth" # Ej: "best_model.pth". Aplica Transfer Learning inyectando pesos previos.
-CSV_FILE = "results.csv"
-CHECKPOINT_FILE = "checkpoint.pth"
+UNDERSAMPLE_RATE = 0.35 # Mantener 35% de 'No Finding'
+RESUME_FROM = None # Ej: "best_model.pth". Aplica Transfer Learning inyectando pesos previos.
+CSV_FILE = get_next_version("results.csv")
+CHECKPOINT_FILE = get_next_version("checkpoint.pth")
+BEST_MODEL_FILE = get_next_version("best_model.pth")
+FINAL_MODEL_FILE = get_next_version("densenet_nih.pth")
 EXCLUDE_LIST_FILE = "holdout_test_set.csv" # Imagenes reservadas estrictamente para test final
 RANDOM_SEED = 42 # Semilla estandar izada para el split
-
-def get_next_version(base_name):
-    """Genera un sufijo _Vn para evitar sobreescribir archivos existentes."""
-    if not os.path.exists(base_name):
-        return base_name
-    name, ext = os.path.splitext(base_name)
-    version = 1
-    new_name = f"{name}_V{version}{ext}"
-    while os.path.exists(new_name):
-        version += 1
-        new_name = f"{name}_V{version}{ext}"
-    return new_name
 
 def load_checkpoint_safe(filepath, model):
     """Carga pesos via Transfer Learning inyectando parches de arquitectura y aborto duro."""
@@ -328,13 +319,13 @@ def main():
         
         # Actualizar Schedulers y Early Stopping
         scheduler.step()
-        early_stopping(val_auc)
         
+        # Guardado preventivo del mejor modelo (versionado automatico)
         if val_auc > best_val_auc:
             best_val_auc = val_auc
-            torch.save(model.state_dict(), BEST_MODEL_OUT)
-            print(f"  -> Nuevo mejor modelo guardado ({BEST_MODEL_OUT}) | AUC: {best_val_auc:.4f}")
-        
+            torch.save(model.state_dict(), BEST_MODEL_FILE)
+            print(f"  [+] ¡Nuevo mejor modelo guardado (AUC: {best_val_auc:.4f})!")
+            
         results.append({
             'epoch': epoch,
             'train_loss': train_loss,
@@ -364,14 +355,15 @@ def main():
         }
         torch.save(checkpoint, CHECKPOINT_FILE)
         
-        # Guardar modelo final en cada iteracion por prevencion
-        torch.save(model.state_dict(), FINAL_MODEL_OUT)
-        
+        # Validar Early Stopping
+        early_stopping(val_auc)
         if early_stopping.early_stop:
-            print(f"\n[!] Entrenenamiento detenido tempranamente por Early Stopping (Paciencia {early_stopping.patience} alcanzada).")
+            print(f"\n[!] Early Stopping accionado en epoca {epoch} (Paciencia {early_stopping.patience} alcanzada). El progreso estancó.")
             break
-        
-    print(f"Entrenamiento finalizado. El mejor modelo esta guardado como '{BEST_MODEL_OUT}'.")
+            
+    print("\n=== ENTRENAMIENTO FINALIZADO ===")
+    torch.save(model.state_dict(), FINAL_MODEL_FILE)
+    print(f"Modelo final exportado a '{FINAL_MODEL_FILE}'. Resultados en '{CSV_FILE}'.")
 
 if __name__ == '__main__':
     # Fix para multiprocessing en Windows
