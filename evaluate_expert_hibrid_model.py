@@ -13,12 +13,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Imports locales
 from src.models.densenet import get_model
+from src.utils.versioning import get_next_version
 
 DATA_DIR = r"D:\Agustin\Facultad\ProyectoFinal\archive"
 TEST_SET_CSV = "holdout_test_set.csv"
-OUTPUT_RESULTS_CSV = "expert_router_predictions.csv"
-OUTPUT_METRICS_CSV = "expert_router_metrics.csv"
-OUTPUT_AWARDS_CSV = "expert_router_awards.csv"
+OUTPUT_RESULTS_CSV = get_next_version("expert_router_predictions.csv")
+OUTPUT_METRICS_CSV = get_next_version("expert_router_metrics.csv")
+OUTPUT_AWARDS_CSV = get_next_version("expert_router_awards.csv")
+OUTPUT_ROC_PLOT = get_next_version("expert_roc_curves.png")
 IMAGE_SIZE = 224
 NUM_CLASSES = 14
 
@@ -264,8 +266,8 @@ def main():
     fig.delaxes(axes[14])
     fig.delaxes(axes[15])
     plt.tight_layout()
-    plt.savefig("expert_roc_curves.png", dpi=200, bbox_inches='tight')
-    print("-> Gráfico Espectacular de 14 Paneles (Grid ROC) guardado como: expert_roc_curves.png")
+    plt.savefig(OUTPUT_ROC_PLOT, dpi=200, bbox_inches='tight')
+    print(f"-> Gráfico Espectacular de 14 Paneles (Grid ROC) guardado como: {OUTPUT_ROC_PLOT}")
     
     print("\n" + "="*50)
     print("GUARDANDO REPORTES DE PERSISTENCIA (CSV)")
