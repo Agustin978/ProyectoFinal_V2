@@ -1,0 +1,15 @@
+Pathology,Mechanism,TP,FN,TN,FP,Sensitivity_%,Specificity_%,Youden_J
+Atelectasis,Experto M3,40,16,154,90,71.43,63.11,0.345
+Cardiomegaly,Experto M1,25,2,223,50,92.59,81.68,0.743
+Effusion,CASCADA M3→M1,53,19,190,38,73.61,83.33,0.569
+Infiltration,Override Manual (M2),65,23,121,91,73.86,57.08,0.309
+Mass,Experto M1,28,12,210,50,70.0,80.77,0.508
+Nodule,Experto M4,29,11,163,97,72.5,62.69,0.352
+Pneumonia,Experto M4,20,4,175,101,83.33,63.41,0.467
+Pneumothorax,Experto M1,27,5,229,39,84.38,85.45,0.698
+Consolidation,CASCADA M1→M2,30,11,203,56,73.17,78.38,0.515
+Edema,Experto M4,35,5,220,40,87.5,84.62,0.721
+Emphysema,Experto M4,23,3,220,54,88.46,80.29,0.688
+Fibrosis,Experto M1,23,3,194,80,88.46,70.8,0.593
+Pleural_Thickening,Experto M3,18,7,202,73,72.0,73.45,0.455
+Hernia,Experto M2,19,1,246,34,95.0,87.86,0.829

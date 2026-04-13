@@ -1,0 +1,15 @@
+Pathology,Diagnosis_Strategy,Effective_Youden_Score,Applied_Threshold(s)
+Atelectasis,Experto M3,0.345,0.215
+Cardiomegaly,Experto M1,0.743,0.222
+Effusion,CASCADA M3→M1,0.569,P:0.22 | C:0.30
+Infiltration,Override Manual (M2),0.309,0.258
+Mass,Experto M1,0.508,0.265
+Nodule,Experto M4,0.352,0.240
+Pneumonia,Experto M4,0.467,0.237
+Pneumothorax,Experto M1,0.698,0.361
+Consolidation,CASCADA M1→M2,0.515,P:0.24 | C:0.22
+Edema,Experto M4,0.721,0.377
+Emphysema,Experto M4,0.688,0.249
+Fibrosis,Experto M1,0.593,0.125
+Pleural_Thickening,Experto M3,0.455,0.198
+Hernia,Experto M2,0.829,0.002
