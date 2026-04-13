@@ -20,13 +20,16 @@ TEST_SET_CSV = "holdout_test_set.csv"
 OUTPUT_RESULTS_CSV = get_next_version("master_hibrid_predictions.csv")
 OUTPUT_METRICS_CSV = get_next_version("master_hibrid_metrics.csv")
 OUTPUT_AWARDS_CSV = get_next_version("master_hibrid_awards.csv")
-IMAGE_SIZE = 224
+IMAGE_SIZE = 224    
 NUM_CLASSES = 14
 
 MODEL_1_PATH = "best_model_20260402_161254.pth" #M1
 MODEL_2_PATH = "best_model_V1.pth" #M2
 MODEL_3_PATH = "best_model_T2_V2.pth" #M3
-MODEL_4_PATH = "best_model.pth" #M4
+#MODEL_4_PATH = "best_model.pth" #M4
+MODEL_4_PATH = "best_model_T2.pth" #M4
+MODEL_5_PATH = "best_model.pth" #M5
+
 
 ALL_LABELS = [
     'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 
@@ -45,13 +48,13 @@ TENSION_CONFIRMA = 1.0
 # 2. Overrides Clínicos (Forzar saltarse el Torneo Youden)
 MANUAL_OVERRIDES = {
     'Infiltration': 1, # Fijas a M2 (best_model_v1)
-    'Pneumonia': 3,     # Fijas a M4
-    'Nodule': 0,        # Fijas a M1 
+    'Pneumonia': 4,     # Fijas a M5
+    #'Nodule': 0,        # Fijas a M1 
 }
 
 # 3. Soft Voting Democrático (No se usa en esta versión, pero se deja preparado para futuras iteraciones)
 SOFT_VOTING_PATHOLOGIES = []
-SOFT_VOTING_WEIGHTS = [0.25, 0.25, 0.25, 0.25] # Pesos para M1, M2, M3 y M4
+SOFT_VOTING_WEIGHTS = [0.25, 0.25, 0.25, 0.25, 0.25] # Pesos para M1, M2, M3, M4 y M5
 
 # 4. Expert Router (Resto de patologías)
 MIN_SPEC = 0.55 # Cota obligatoria clínica
@@ -162,6 +165,7 @@ def main():
     model2 = load_safe(MODEL_2_PATH, get_model(num_classes=NUM_CLASSES, pretrained=False).to(device), device)
     model3 = load_safe(MODEL_3_PATH, get_model(num_classes=NUM_CLASSES, pretrained=False).to(device), device)
     model4 = load_safe(MODEL_4_PATH, get_model(num_classes=NUM_CLASSES, pretrained=False).to(device), device)
+    model5 = load_safe(MODEL_5_PATH, get_model(num_classes=NUM_CLASSES, pretrained=False).to(device), device)
     print("4 Expertos inicializados (M1, M2, M3, M4).")
 
     eval_transform = transforms.Compose([
@@ -171,7 +175,7 @@ def main():
     ])
     
     all_img_names, all_true_labels_str, all_y_true = [], [], []
-    all_probs = [ [], [], [], [] ]
+    all_probs = [ [], [], [], [], [] ]
     
     sigmoid = nn.Sigmoid()
 
@@ -191,9 +195,10 @@ def main():
             all_probs[1].append(sigmoid(model2(image_tensor)).cpu().squeeze().numpy())
             all_probs[2].append(sigmoid(model3(image_tensor)).cpu().squeeze().numpy())
             all_probs[3].append(sigmoid(model4(image_tensor)).cpu().squeeze().numpy())
+            all_probs[4].append(sigmoid(model5(image_tensor)).cpu().squeeze().numpy())
 
     all_y_true = np.array(all_y_true)
-    for m in range(4): all_probs[m] = np.array(all_probs[m])
+    for m in range(5): all_probs[m] = np.array(all_probs[m])
     
     print("\nAuditoria completada. Desplegando Motor Tricéfalo...")
     router_preds = np.zeros_like(all_y_true)
@@ -201,15 +206,15 @@ def main():
     fig, axes = plt.subplots(4, 4, figsize=(22, 22))
     axes = axes.flatten()
     awards_list = []
-    model_names = ["M1", "M2", "M3", "M4"]
-    model_colors = ['red', 'blue', 'green', 'orange']
+    model_names = ["M1", "M2", "M3", "M4", "M5"]
+    model_colors = ['red', 'blue', 'green', 'orange', 'purple']
 
     for p_idx, pathology in enumerate(ALL_LABELS):
         y_t = all_y_true[:, p_idx]
         if sum(y_t) == 0: continue
             
         metrics = []
-        for m in range(4):
+        for m in range(5):
             metrics.append(get_expert_metrics(y_t, all_probs[m][:, p_idx]))
             
         ax = axes[p_idx]
@@ -228,7 +233,7 @@ def main():
             applied_thresh_str = f"{real_thresh:.3f}"
             j_score_logged = get_cascade_youden(y_t, router_preds[:, p_idx]) 
             
-            for m in range(4):
+            for m in range(5):
                 lw = 4 if m == winner_idx else 1
                 alpha = 1.0 if m == winner_idx else 0.2
                 ax.plot(metrics[m][0], metrics[m][1], color=model_colors[m], lw=lw, alpha=alpha, label=f'M{m+1}')
@@ -237,7 +242,7 @@ def main():
         elif pathology in SOFT_VOTING_PATHOLOGIES:
             # ---> RUTA B: SOFT VOTING DEMÓCRATA <---
             w = SOFT_VOTING_WEIGHTS
-            p_sv = w[0]*all_probs[0][:, p_idx] + w[1]*all_probs[1][:, p_idx] + w[2]*all_probs[2][:, p_idx] + w[3]*all_probs[3][:, p_idx]
+            p_sv = w[0]*all_probs[0][:, p_idx] + w[1]*all_probs[1][:, p_idx] + w[2]*all_probs[2][:, p_idx] + w[3]*all_probs[3][:, p_idx] + w[4]*all_probs[4][:, p_idx]
             
             fpr_sv, tpr_sv, th_sv, b_fpr, b_tpr, auc_sv, j_sv = get_expert_metrics(y_t, p_sv)
             real_thresh = MANUAL_THRESHOLDS.get(pathology, th_sv)
@@ -251,7 +256,7 @@ def main():
             
             ax.plot(fpr_sv, tpr_sv, color='magenta', lw=4, label=f'Consenso')
             ax.scatter(b_fpr, b_tpr, color='magenta', marker='*', s=150)
-            for m in range(4):
+            for m in range(5):
                  ax.plot(metrics[m][0], metrics[m][1], color=model_colors[m], lw=1, alpha=0.3)
             ax.set_title(f"{pathology}\nSoft Voting ★", fontweight='bold', color='magenta')
             
@@ -280,7 +285,7 @@ def main():
             applied_thresh_str = f"P:{real_thresh_p:.2f} | C:{real_thresh_c:.2f}"
             j_score_logged = get_cascade_youden(y_t, router_preds[:, p_idx])
             
-            for m in range(4):
+            for m in range(5):
                 lw = 3 if m in [idx_pantalla, idx_confirma] else 1
                 alpha = 1.0 if m in [idx_pantalla, idx_confirma] else 0.2
                 ax.plot(metrics[m][0], metrics[m][1], color=model_colors[m], lw=lw, alpha=alpha, label=f'M{m+1}')
@@ -288,7 +293,7 @@ def main():
             
         else:
             # ---> RUTA D: MÉRITO PURO (EXPERT ROUTER) <---
-            j_scores = [metrics[m][6] for m in range(4)]
+            j_scores = [metrics[m][6] for m in range(5)]
             winner_idx = np.argmax(j_scores)
             
             real_thresh = MANUAL_THRESHOLDS.get(pathology, metrics[winner_idx][2])
@@ -301,7 +306,7 @@ def main():
             applied_thresh_str = f"{real_thresh:.3f}"
             j_score_logged = get_cascade_youden(y_t, router_preds[:, p_idx])
             
-            for m in range(4):
+            for m in range(5):
                 lw = 4 if m == winner_idx else 1
                 alpha = 1.0 if m == winner_idx else 0.2
                 is_win = ' ★' if m == winner_idx else ''
