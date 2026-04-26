@@ -1,0 +1,15 @@
+Pathology,Strategy,Winner_Model,Threshold_Calib,Youden_J_Calib,ROC_AUC_Calib
+Atelectasis,Expert Router (V1),V1,0.2054,0.4738,0.8101
+Cardiomegaly,Expert Router (V1),V1,0.378,0.7885,0.9459
+Effusion,Expert Router (Base),Base,0.2189,0.6131,0.8771
+Infiltration,Expert Router (V1_3),V1_3,0.2849,0.3027,0.6979
+Mass,Expert Router (V1),V1,0.2643,0.5875,0.8687
+Nodule,Expert Router (V1),V1,0.2971,0.4088,0.7725
+Pneumonia,Expert Router (V1),V1,0.5542,0.715,0.9136
+Pneumothorax,Expert Router (V1),V1,0.2913,0.6801,0.9101
+Consolidation,Expert Router (20260402),20260402,0.237,0.4904,0.8014
+Edema,Expert Router (V1),V1,0.3382,0.7812,0.9471
+Emphysema,Expert Router (V1),V1,0.2594,0.8206,0.9667
+Fibrosis,Expert Router (V1),V1,0.2726,0.6931,0.9188
+Pleural_Thickening,Expert Router (T1_V2),T1_V2,0.2348,0.5337,0.8383
+Hernia,Expert Router (20260402),20260402,0.95,1.0,1.0
