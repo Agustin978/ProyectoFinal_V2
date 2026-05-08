@@ -20,7 +20,17 @@ from src.utils.versioning import get_next_version
 # CONFIGURACIÓN  (única sección a editar)
 # =============================================================================
 DATA_DIR     = r"D:\Agustin\Facultad\ProyectoFinal\archive"
-MODEL_PATH   = "best_model_T1_V2.pth"
+#MODEL_PATH = "best_model.pth"
+#MODEL_PATH = "best_model_20260402_161254.pth"
+#MODEL_PATH = "best_model_20260423_114736.pth"
+#MODEL_PATH = "best_model_V1_3.pth"
+#MODEL_PATH = "best_model_T4.pth"
+#MODEL_PATH = "best_model_V1.pth"
+#MODEL_PATH = "best_model_T1_V2.pth"
+#MODEL_PATH = "best_model_T3.pth"
+#MODEL_PATH = "best_model_T2_V2.pth"
+#MODEL_PATH = "best_model_T1.pth"
+MODEL_PATH = "best_model_T2.pth"
 TEST_SET_CSV = "holdout_test_set.csv"
 
 # PREVENCIÓN DE LEAKAGE (STRICT MODE ON)
