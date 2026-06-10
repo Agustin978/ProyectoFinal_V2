@@ -13,7 +13,7 @@ class Trainer:
         self.criterion = criterion
         self.optimizer = optimizer
         self.device = device
-        self.pos_weight = pos_weight # Para futuro balanceo de clases
+        self.pos_weight = pos_weight # Tensor de pesos positivos por clase
 
     def train_one_epoch(self, epoch):
         self.model.train()
