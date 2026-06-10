@@ -1,0 +1,15 @@
+Pathology,Winner_Model,Strategy,Threshold,TP,FN,TN,FP,Sensitivity_%,Specificity_%,Youden_J
+Atelectasis,T2_V2,Override (T2_V2),0.2089,28,12,105,65,70.0,61.76,0.318
+Cardiomegaly,T4,Override (T4),0.05,19,2,138,51,90.48,73.02,0.635
+Effusion,T1_V2,Override (T1_V2),0.2395,42,7,116,45,85.71,72.05,0.578
+Infiltration,T2,Override (T2),0.2819,39,19,93,59,67.24,61.18,0.284
+Mass,T1,Override (T1),0.2667,22,5,136,47,81.48,74.32,0.558
+Nodule,T3,Override (T3),0.7891,6,22,171,11,21.43,93.96,0.154
+Pneumonia,T1,Override (T1),0.4414,9,11,155,35,45.0,81.58,0.266
+Pneumothorax,20260402,Override (20260402),0.1288,22,1,116,71,95.65,62.03,0.577
+Consolidation,T4,Override (T4),0.2444,27,3,126,54,90.0,70.0,0.6
+Edema,Base,Override (Base),0.7627,15,13,164,18,53.57,90.11,0.437
+Emphysema,T3,Override (T3),0.8731,8,14,183,5,36.36,97.34,0.337
+Fibrosis,T3,Override (T3),0.05,9,5,157,39,64.29,80.1,0.444
+Pleural_Thickening,20260423,Override (20260423),0.3166,13,6,147,44,68.42,76.96,0.454
+Hernia,V1_3,Override (V1_3),0.7069,10,8,192,0,55.56,100.0,0.556

@@ -1,0 +1,15 @@
+Pathology,Strategy,Winner_Model,Threshold_Calib,Youden_J_Calib,ROC_AUC_Calib
+Atelectasis,Override (T2_V2),T2_V2,0.2089,0.3454,0.6698
+Cardiomegaly,Override (T4),T4,0.3991,0.5644,0.8345
+Effusion,Override (T1_V2),T1_V2,0.2395,0.5302,0.8128
+Infiltration,Override (T2),T2,0.2756,0.3809,0.7152
+Mass,Override (T1),T1,0.2667,0.4833,0.767
+Nodule,Override (T3),T3,0.3863,0.3278,0.6898
+Pneumonia,Override (T1),T1,0.2079,0.3028,0.6383
+Pneumothorax,Override (20260402),20260402,0.3609,0.7101,0.9149
+Consolidation,Override (T4),T4,0.2444,0.5172,0.7781
+Edema,Override (Base),Base,0.5762,0.7004,0.8815
+Emphysema,Override (T3),T3,0.2169,0.7754,0.9291
+Fibrosis,Override (T3),T3,0.05,0.5259,0.7901
+Pleural_Thickening,Override (20260423),20260423,0.2853,0.5414,0.7943
+Hernia,Override (V1_3),V1_3,0.05,0.9577,0.9921

@@ -16,6 +16,17 @@ pip-delete-this-directory.txt
 
 # Project specific
 *.pth
-data/
+data/_pycache_/
 archive/
 .DS_Store
+
+# Resultados generados no versionados (solo se versionan final_hybrid_*, results_*, holdout_test_set.csv)
+evaluate_expert_*.py
+evaluate_hybrid_model.py
+evaluation_results*.csv
+expert_*
+hybrid_evaluation_*.csv
+hybrid_roc_curves*.png
+master_hibrid_*.csv
+master_predictions_roc_curves*.png
+roc_curves_per_class*.png

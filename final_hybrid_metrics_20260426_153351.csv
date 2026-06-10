@@ -1,0 +1,15 @@
+Pathology,Winner_Model,Strategy,Threshold,TP,FN,TN,FP,Sensitivity_%,Specificity_%,Youden_J
+Atelectasis,V1,Expert Router (V1),0.2054,863,309,4350,2040,73.63,68.08,0.417
+Cardiomegaly,V1,Expert Router (V1),0.378,243,29,6538,752,89.34,89.68,0.79
+Effusion,Base,Expert Router (Base),0.2189,1097,257,4790,1418,81.02,77.16,0.582
+Infiltration,V1_3,Expert Router (V1_3),0.2849,1107,826,3914,1715,57.27,69.53,0.268
+Mass,V1,Expert Router (V1),0.2643,424,145,5655,1338,74.52,80.87,0.554
+Nodule,V1,Expert Router (V1),0.2971,460,187,4786,2129,71.1,69.21,0.403
+Pneumonia,V1,Expert Router (V1),0.5542,123,43,6772,624,74.1,91.56,0.657
+Pneumothorax,V1,Expert Router (V1),0.2913,411,71,5751,1329,85.27,81.23,0.665
+Consolidation,20260402,Expert Router (20260402),0.237,363,101,4967,2131,78.23,69.98,0.482
+Edema,V1,Expert Router (V1),0.3382,217,36,6317,992,85.77,86.43,0.722
+Emphysema,V1,Expert Router (V1),0.2594,189,26,6556,791,87.91,89.23,0.771
+Fibrosis,V1,Expert Router (V1),0.2726,165,22,6123,1252,88.24,83.02,0.713
+Pleural_Thickening,T1_V2,Expert Router (T1_V2),0.2348,253,63,5051,2195,80.06,69.71,0.498
+Hernia,20260402,Expert Router (20260402),0.95,25,0,7523,14,100.0,99.81,0.998
